@@ -1,0 +1,66 @@
+import { useQuery, UseQueryResult } from "@tanstack/react-query";
+import API from "../api/api";
+import { Match } from "../models/match";
+import AppGlobal from "../ultis/global";
+
+/**
+ * Fetches match list from backend only. Backend reads from DB (matches are saved to DB first, never from HKJC/external API directly to the client).
+ */
+export const useMatchs = (
+  startDate?: string,
+  endDate?: string
+): UseQueryResult<Match[], Error> => {
+  return useQuery<Match[], Error>({
+    queryKey: ["matchs", startDate, endDate],
+    queryFn: async () => {
+      try {
+        // Backend API: returns matches from database (backend saves from HKJC to DB, then responds from DB)
+        const url = AppGlobal.baseURL + "match/match-data";
+        const res = await API.GET(url);
+        
+        if (import.meta.env.DEV) {
+          console.log('[useMatchs] API response status:', res.status);
+          console.log('[useMatchs] API response data type:', typeof res.data);
+          console.log('[useMatchs] API response is array:', Array.isArray(res.data));
+        }
+        
+        if (res.status === 200 && res.data) {
+          if (Array.isArray(res.data)) {
+            if (import.meta.env.DEV) {
+              console.log('[useMatchs] Returning', res.data.length, 'matches');
+            }
+            return res.data;
+          } else {
+            if (import.meta.env.DEV) {
+              console.warn('[useMatchs] Response data is not an array:', res.data);
+            }
+            return [];
+          }
+        }
+        
+        // Handle error responses
+        if (res.status !== 200) {
+          console.error('[useMatchs] API returned error status:', res.status, res.data);
+          throw new Error(`Failed to fetch matches: ${res.status} - ${res.data?.error || res.data?.message || 'Unknown error'}`);
+        }
+        
+        // If no data, return empty array instead of throwing
+        if (import.meta.env.DEV) {
+          console.warn('[useMatchs] No data in response, returning empty array');
+        }
+        return [];
+      } catch (error) {
+        console.error('[useMatchs] Error fetching matches:', error);
+        // Return empty array on error instead of throwing to prevent crashes
+        // React Query will still mark it as an error state
+        throw error;
+      }
+    },
+    staleTime: 2 * 60 * 1000, // 2 minutes - balance between freshness and performance
+    refetchInterval: 60 * 1000, // Refetch every 60 seconds for live updates (reduced from 30s)
+    refetchOnMount: false, // Use cached data if available
+    refetchOnWindowFocus: false, // Disable to reduce unnecessary requests
+    retry: 2, // Retry failed requests
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  });
+};

@@ -1,0 +1,203 @@
+import { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { FaInstagram, FaTelegramPlane } from "react-icons/fa";
+import { HiMenu, HiX } from "react-icons/hi";
+import AppAssets from "../ultis/assets";
+import useAuthStore from "../store/userAuthStore";
+import { FaThreads } from "react-icons/fa6";
+import { useConfig } from "../hooks/useConfig";
+
+function AppBarComponent() {
+    const { t } = useTranslation();
+    const navigate = useNavigate();
+    const location = useLocation();
+    const [isOpen, setIsOpen] = useState(false);
+    const { userRole, logout } = useAuthStore();
+
+    const menuItems = [];
+    menuItems.push({ label: t("home"), ur: "/", path: () => navigate("/") });
+    if (location.pathname == "/") {
+        menuItems.push({ label: t("About_Us"), ur: "/about-us", path: () => scrollToSection("about-us") });
+        menuItems.push({ label: t("Contact_Us"), ur: "/contact-us", path: () => scrollToSection("contact-us") });
+    }
+    if (userRole) {
+        menuItems.push({ label: t("matches"), ur: "/matches", path: () => navigate("/matches") });
+        menuItems.push({ label: '每日紀錄', ur: "/records", path: () => navigate("/records") });
+        menuItems.push({ label: '$500上$10萬紀錄', ur: "/records2", path: () => navigate("/records2") });
+        menuItems.push({ label: '服務條款', ur: "/terms", path: () => navigate("/terms") });
+    } else {
+        menuItems.push({ label: '每日紀錄', ur: "/records", path: () => navigate("/records") });
+        menuItems.push({ label: '$500上$10萬紀錄', ur: "/records2", path: () => navigate("/records2") });
+        menuItems.push({ label: '服務條款', ur: "/terms", path: () => navigate("/terms") });
+    }
+    if (userRole && (userRole === "admin" || userRole === "subadmin")) {
+        menuItems.push({ label: '', ur: "", path: () => navigate("/") });
+        menuItems.push({ label: t("members"), ur: "/admin/members", path: () => navigate("/admin/members") });
+        menuItems.push({ label: t("records"), ur: "/admin/records", path: () => navigate("/admin/records") });
+        menuItems.push({ label: "記錄2", ur: "/admin/records2", path: () => navigate("/admin/records2") });
+        menuItems.push({ label: t("admins"), ur: "/admin/admins", path: () => navigate("/admin/admins") });
+        menuItems.push({ label: "分析", ur: "/admin/analytics", path: () => navigate("/admin/analytics") });
+    }
+
+    const scrollToSection = (id: any) => {
+        const section = document.getElementById(id);
+        if (section) {
+            section.scrollIntoView({ behavior: "smooth" });
+        }
+    };
+
+
+    const { data: config } = useConfig();
+
+
+    return (
+        <nav className="bg-gradient-to-b from-black to-transparent fixed w-full z-20 top-0 h-24">
+            <div className="max-w-screen-2xl mx-auto flex items-center justify-between h-full px-6">
+
+
+                <div className="flex items-center space-x-6">
+                    <a href="/">
+                        <img src={AppAssets.logo} className="h-20" alt="Logo" />
+                    </a>
+
+                    <div className="w-px h-12 bg-white" />
+
+                    <ul className="hidden md:flex items-center space-x-8 text-white">
+                        {menuItems.map((item, idx) => (
+                            item.label === "" ? (
+                                <div key={idx} className="w-px h-12 bg-white" />
+                            ) : (
+                                <li
+                                    key={idx}
+                                    onClick={item.path}
+                                    className={`cursor-pointer p-2 rounded-lg hover:bg-black text-sm ${location.pathname === item.ur ? "text-white" : ""
+                                        }`}
+                                    style={{ color: item.ur.includes("admin") ? "orange" : "white" }}
+                                >
+                                    {item.label.toUpperCase()}
+                                </li>
+                            )
+                        ))}
+                    </ul>
+                </div>
+
+
+                <div className="hidden md:flex items-center space-x-4 text-white">
+
+
+                    {
+                        [
+                            { icon: <FaInstagram />, url: config?.instagram || "https://www.instagram.com/dopehk.ai/" },
+                            { icon: <FaThreads />, url: config?.threads || "https://www.threads.com/@dopehk.ai" },
+                            { icon: <FaTelegramPlane />, url: config?.telegram || "https://t.me/Dopehkai" },
+                            {
+                                icon: <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    height="28"
+                                    width="28"
+                                    viewBox="-18.15 -35.9725 157.3 215.835"
+                                    className="hover:drop-shadow-lg transition duration-300"
+                                >
+                                    <g fill="white">
+                                        <path fill="#faab07" d="M60.503 142.237c-12.533 0-24.038-4.195-31.445-10.46-3.762 1.124-8.574 2.932-11.61 5.175-2.6 1.918-2.275 3.874-1.807 4.663 2.056 3.47 35.273 2.216 44.862 1.136zm0 0c12.535 0 24.039-4.195 31.447-10.46 3.76 1.124 8.573 2.932 11.61 5.175 2.598 1.918 2.274 3.874 1.805 4.663-2.056 3.47-35.272 2.216-44.862 1.136zm0 0" />
+                                        <path d="M60.576 67.119c20.698-.14 37.286-4.147 42.907-5.683 1.34-.367 2.056-1.024 2.056-1.024.005-.189.085-3.37.085-5.01C105.624 27.768 92.58.001 60.5 0 28.42.001 15.375 27.769 15.375 55.401c0 1.642.08 4.822.086 5.01 0 0 .583.615 1.65.913 5.19 1.444 22.09 5.65 43.312 5.795zm56.245 23.02c-1.283-4.129-3.034-8.944-4.808-13.568 0 0-1.02-.126-1.537.023-15.913 4.623-35.202 7.57-49.9 7.392h-.153c-14.616.175-33.774-2.737-49.634-7.315-.606-.175-1.802-.1-1.802-.1-1.774 4.624-3.525 9.44-4.808 13.568-6.119 19.69-4.136 27.838-2.627 28.02 3.239.392 12.606-14.821 12.606-14.821 0 15.459 13.957 39.195 45.918 39.413h.848c31.96-.218 45.917-23.954 45.917-39.413 0 0 9.368 15.213 12.607 14.822 1.508-.183 3.491-8.332-2.627-28.021" />
+                                        <path fill="#fff" d="M49.085 40.824c-4.352.197-8.07-4.76-8.304-11.063-.236-6.305 3.098-11.576 7.45-11.773 4.347-.195 8.064 4.76 8.3 11.065.238 6.306-3.097 11.577-7.446 11.771m31.133-11.063c-.233 6.302-3.951 11.26-8.303 11.063-4.35-.195-7.684-5.465-7.446-11.77.236-6.305 3.952-11.26 8.3-11.066 4.352.197 7.686 5.468 7.449 11.773" />
+                                        <path fill="#faab07" d="M87.952 49.725C86.79 47.15 75.077 44.28 60.578 44.28h-.156c-14.5 0-26.212 2.87-27.375 5.446a.863.863 0 00-.085.367.88.88 0 00.16.496c.98 1.427 13.985 8.487 27.3 8.487h.156c13.314 0 26.319-7.058 27.299-8.487a.873.873 0 00.16-.498.856.856 0 00-.085-.365" />
+                                        <path d="M54.434 29.854c.199 2.49-1.167 4.702-3.046 4.943-1.883.242-3.568-1.58-3.768-4.07-.197-2.492 1.167-4.704 3.043-4.944 1.886-.244 3.574 1.58 3.771 4.07m11.956.833c.385-.689 3.004-4.312 8.427-2.993 1.425.347 2.084.857 2.223 1.057.205.296.262.718.053 1.286-.412 1.126-1.263 1.095-1.734.875-.305-.142-4.082-2.66-7.562 1.097-.24.257-.668.346-1.073.04-.407-.308-.574-.93-.334-1.362" />
+                                        <path fill="#fff" d="M60.576 83.08h-.153c-9.996.12-22.116-1.204-33.854-3.518-1.004 5.818-1.61 13.132-1.09 21.853 1.316 22.043 14.407 35.9 34.614 36.1h.82c20.208-.2 33.298-14.057 34.616-36.1.52-8.723-.087-16.035-1.092-21.854-11.739 2.315-23.862 3.64-33.86 3.518" />
+                                        <path fill="#eb1923" d="M32.102 81.235v21.693s9.937 2.004 19.893.616V83.535c-6.307-.357-13.109-1.152-19.893-2.3" />
+                                        <path fill="#eb1923" d="M105.539 60.412s-19.33 6.102-44.963 6.275h-.153c-25.591-.172-44.896-6.255-44.962-6.275L8.987 76.57c16.193 4.882 36.261 8.028 51.436 7.845h.153c15.175.183 35.242-2.963 51.437-7.845zm0 0" />
+                                    </g></svg>, url: config?.message
+                            },
+                        ].map((s, i) => (
+                            <span
+                                key={i}
+                                className="cursor-pointer hover:text-black"
+                                onClick={() => window.open(s.url ?? "/", "_blank")}
+                            >
+                                {s.icon}
+                            </span>
+                        ))}
+
+
+
+                    <div className="pl-4 flex flex-col items-end space-y-2 relative">
+
+                        {userRole ? (
+                            <button
+                                onClick={logout}
+                                className="bg-black hover:bg-gray-800 rounded-lg text-xs px-4 py-2"
+                            >
+                                {t("logout").toUpperCase()}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => navigate("/login")}
+                                className="bg-black hover:bg-gray-800 rounded-lg text-sm px-4 py-2"
+                            >
+                                {t("login").toUpperCase()}
+                            </button>
+                        )}
+
+
+                    </div>
+                </div>
+
+                <div className="md:hidden flex items-center gap-3">
+                    <button
+                        className="text-3xl text-white bg-black border-2 border-black rounded-lg p-2 hover:bg-gray-900 transition-colors"
+                        onClick={() => setIsOpen(!isOpen)}
+                    >
+                        {isOpen ? <HiX /> : <HiMenu />}
+                    </button>
+                </div>
+            </div>
+
+            {isOpen && (
+                <div className="md:hidden bg-black text-white px-6 py-4 space-y-4">
+                    {menuItems.map((item, idx) => (
+                        item.label && (
+                            <div
+                                key={idx}
+                                onClick={() => {
+                                    item.path();
+                                    setIsOpen(false);
+                                }}
+                                className="text-lg hover:text-gray-300 cursor-pointer transition-colors"
+                            >
+                                {item.label.toUpperCase()}
+                            </div>
+                        )
+                    ))}
+
+                    <div className="pt-4 border-t border-white/20">
+                        {userRole ? (
+                            <button
+                                onClick={() => {
+                                    logout();
+                                    setIsOpen(false);
+                                }}
+                                className="w-full bg-white hover:bg-gray-100 text-black border-2 border-black rounded-lg text-sm px-4 py-3 mb-4 font-semibold transition-colors"
+                            >
+                                {t("logout").toUpperCase()}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => {
+                                    navigate("/login");
+                                    setIsOpen(false);
+                                }}
+                                className="w-full bg-white hover:bg-gray-100 text-black border-2 border-black rounded-lg text-sm px-4 py-3 mb-4 font-semibold transition-colors"
+                            >
+                                {t("login").toUpperCase()}
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+        </nav>
+    );
+}
+
+export default AppBarComponent;

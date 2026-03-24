@@ -1,0 +1,162 @@
+import { useTranslation } from "react-i18next";
+import AppAssets from "../../../ultis/assets";
+import { Records } from "../../../models/records";
+import { format } from "date-fns";
+import { zhTW } from "date-fns/locale";
+import { useNavigate } from "react-router-dom";
+import AppGlobal from "../../../ultis/global";
+
+const baseMediaUrl = () => AppGlobal.baseURL.replace("/api/", "");
+
+const isVideoUrl = (path: string) => /\.(mp4|webm|ogg)(\?|$)/i.test(path || "");
+
+function MediaBlock({ src, className }: { src: string; className?: string }) {
+    const url = baseMediaUrl() + src;
+    const isVideo = isVideoUrl(src);
+    if (isVideo) {
+        return (
+            <video
+                src={url}
+                className={className}
+                autoPlay
+                muted
+                playsInline
+                loop
+                onError={(e) => {
+                    console.error("Failed to load video:", src);
+                    e.currentTarget.style.display = "none";
+                }}
+            />
+        );
+    }
+    return (
+        <img
+            src={url}
+            className={className}
+            loading="lazy"
+            decoding="async"
+            onError={(e) => {
+                console.error("Failed to load image:", src);
+                e.currentTarget.style.display = "none";
+            }}
+        />
+    );
+}
+
+export type Props = {
+    data: Records[];
+};
+
+export default function SectionComponentRecords2({
+    data
+}: Props) {
+    const { t } = useTranslation();
+    const navigate = useNavigate();
+    const withMedia = data.filter((x) => x.media && x.media.length > 0);
+    const featured = withMedia[0];
+    const rest = withMedia.slice(1);
+
+    return (
+        <section className="flex flex-col bg-white">
+
+            <div className="relative z-10 w-full flex items-center flex-col sm:pl-10 pl-2 pr-5 sm:mb-8 sm:mt-0 mt-8">
+                <div className="relative z-10 w-full flex items-end h-[20vh] sm:h-[20vh]">
+                    <div className="flex flex-1 items-center pl-5">
+                        <div className="w-5 bg-black mr-4 self-stretch" />
+                        <div className="flex flex-col justify-center space-y-2 text-black">
+                            <p className="sm:text-1xl text-1xl font-bold leading-[1.1]">
+                                {t("Professional_Match_Data_Analysis").toUpperCase()}
+                            </p>
+                            <p className="sm:text-5xl text-3xl font-semibold leading-tight">
+                                $500上$10萬紀錄
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex flex-wrap justify-center items-stretch gap-3 sm:gap-7 px-2 mb-15 mt-8 sm:m-0 m-8 bg-white pb-12">
+                {withMedia.length === 0 ? (
+                    <div className="flex sm:h-40 h-80" />
+                ) : (
+                    <>
+                        {featured && (
+                            <div className="w-full sm:w-[48%] sm:max-w-[500px] sm:min-w-[300px] flex flex-col rounded-xl overflow-hidden shadow-lg border border-white/20 bg-white/100">
+                                <div className="w-full aspect-video sm:aspect-video bg-black overflow-hidden">
+                                    <MediaBlock
+                                        src={featured.media[0]}
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                                <div className="w-full p-4 flex flex-col justify-center text-black">
+                                    <p className="text-sm text-black">
+                                        {format(new Date(featured.date), "yyyy年M月d日(E)", { locale: zhTW })}
+                                    </p>
+                                    <p className="text-xs text-black mb-1">第3期</p>
+                                    <p className="text-sm font-semibold text-black mb-2">500上10萬紀錄</p>
+                                    <p className="text-xs text-black mb-2 truncate" style={{ whiteSpace: "pre-wrap" }}>
+                                        {featured.description?.toUpperCase()}
+                                    </p>
+                                    <div
+                                        className="text-green-600 font-semibold underline cursor-pointer"
+                                        onClick={() => navigate("records2")}
+                                    >
+                                        {t("閱讀更多")}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {rest.map((item: Records) => (
+                            <div
+                                key={item?.id}
+                                className="backdrop-blur-sm bg-white/100 border-none border-white/20 rounded-xl overflow-hidden w-[48%] sm:w-[300px] sm:h-[32rem] h-96 shadow-lg hover:scale-105 transition-transform flex flex-col"
+                            >
+                                <div className="h-4/6 w-full overflow-hidden bg-black">
+                                    <MediaBlock
+                                        src={item.media[0]}
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                                <div className="h-2/6 w-full p-3 flex flex-col justify-center text-white">
+                                    <p className="text-[9px] text-black">
+                                        {format(new Date(item.date), "yyyy年M月d日(E)", { locale: zhTW })}
+                                    </p>
+                                    <h3 className="text-xs text-black mb-2 truncate" style={{ whiteSpace: "pre-wrap", margin: 0 }}>
+                                        {item?.description?.toUpperCase()}
+                                    </h3>
+                                    <div style={{ textAlign: "left", marginBottom: -10, marginTop: 10 }}>
+                                        <div
+                                            style={{ fontSize: 15, cursor: "pointer", color: "#198754", fontWeight: 600 }}
+                                            className="text-decoration-underline"
+                                            onClick={() => navigate("records2")}
+                                        >
+                                            {t("閱讀更多")}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </>
+                )}
+            </div>
+
+            <div className="relative z-10 w-full flex items-center flex-col sm:pl-10 pl-2 pr-5 ">
+                <div className="relative z-10 w-full flex items-center">
+                    <div className="flex flex-1 items-center pl-5">
+                        <div className="flex flex-col justify-center">
+                            <p className="sm:text-3xl text-2xl font-semibold text-black leading-tight">
+                                會員勁中紀錄
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <img
+                src={AppAssets.bottom_cover_white}
+                className="w-full"
+            />
+        </section>
+    );
+}
+
