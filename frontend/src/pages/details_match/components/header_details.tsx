@@ -21,13 +21,17 @@ function HeaderDetailsComponent({
         const pick = data.ia?.bestPick;
         if (!pick) return null;
 
-        // Only show HiLo analysis – labels from translation so you can change "大3.5" etc.
-        if (pick === "OVER_2.5") return t("analysis_over_2_5");
-        if (pick === "UNDER_2.5") return t("analysis_under_2_5");
-        if (pick === "OVER_3.5") return t("analysis_over_3_5");
-        if (pick === "UNDER_3.5") return t("analysis_under_3_5");
+        const match = pick.match(/^(OVER|UNDER)_(\d+\.?\d*)$/);
+        if (!match) return null;
 
-        return null;
+        const direction = match[1]; // "OVER" or "UNDER"
+        const aiLine = parseFloat(match[2]);
+        const hkjcLine = data.hilMainLine ? parseFloat(data.hilMainLine) : NaN;
+        // Use the lower of AI line and HKJC HIL main line
+        const displayLine = !isNaN(hkjcLine) && hkjcLine < aiLine ? hkjcLine : aiLine;
+
+        const prefix = direction === "OVER" ? t("analysis_over") : t("analysis_under");
+        return `${prefix}${displayLine}`;
     };
 
     const analysisLabel = getAnalysisLabel();
