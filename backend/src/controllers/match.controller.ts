@@ -301,7 +301,11 @@ class MatchController {
                 }
             }
 
-            const hkjc: HKJC[] = await ApiHKJCMatchList();
+            // Use cached HKJC data from sync cron if available, otherwise call API
+            let hkjc: HKJC[] = await cacheGet<HKJC[]>(CacheKeys.hkjcRawList()) ?? [];
+            if (!hkjc.length) {
+                hkjc = await ApiHKJCMatchList();
+            }
             const matchesCol = collection(db, Tables.matches);
             const snapshot = await getDocs(matchesCol);
             const dbById: Record<string, any> = {};
@@ -451,9 +455,14 @@ class MatchController {
             // Try Redis cache first when not forcing refresh
             if (!refresh) {
                 const cached = await cacheGet<Match>(CacheKeys.matchDetail(id));
-                if (cached && cached.lastGames?.homeTeam && cached.lastGames?.awayTeam) {
+                if (cached) {
                     fillIAFromPredictions(cached);
-                    console.log("[getMatchDetails] Returning match from Redis cache");
+                    const isComplete = !!(cached.lastGames?.homeTeam && cached.lastGames?.awayTeam);
+                    console.log("[getMatchDetails] Returning match from Redis cache (complete:", isComplete + ")");
+                    if (!isComplete) {
+                        // Return partial data now, enrich in background
+                        setImmediate(() => this.enrichMatchInBackground(id));
+                    }
                     return res.json(cached);
                 }
             }
@@ -462,33 +471,38 @@ class MatchController {
             if (!refresh) {
                 const matchRef = doc(db, Tables.matches, id);
                 const matchSnap = await getDoc(matchRef);
-                
+
                 if (matchSnap.exists()) {
                     existingMatchData = matchSnap.data() as Match;
-                    // If match exists in DB with complete data, return it and cache it
-                    if (existingMatchData.lastGames && existingMatchData.lastGames.homeTeam && existingMatchData.lastGames.awayTeam) {
-                        fillIAFromPredictions(existingMatchData);
-                        console.log("[getMatchDetails] Returning complete match from database");
-                        await cacheSet(CacheKeys.matchDetail(id), existingMatchData, 300);
-                        return res.json(existingMatchData);
-                    } else {
-                        console.log("[getMatchDetails] Match found in database but missing lastGames, will fetch from APIs to complete...");
-                        // Continue to fetch from API to complete the data, but use existing matchData as base
+                    fillIAFromPredictions(existingMatchData);
+                    const isComplete = !!(existingMatchData.lastGames?.homeTeam && existingMatchData.lastGames?.awayTeam);
+                    console.log("[getMatchDetails] Returning match from database (complete:", isComplete + ")");
+                    await cacheSet(CacheKeys.matchDetail(id), existingMatchData, 300);
+                    if (!isComplete) {
+                        // Return partial data now, enrich in background
+                        setImmediate(() => this.enrichMatchInBackground(id));
                     }
+                    return res.json(existingMatchData);
                 } else {
                     console.log("[getMatchDetails] Match not found in database, fetching from APIs...");
                 }
             } else {
+                // For refresh, load existing data to use as base for merging
+                const matchRef = doc(db, Tables.matches, id);
+                const matchSnap = await getDoc(matchRef);
+                if (matchSnap.exists()) {
+                    existingMatchData = matchSnap.data() as Match;
+                }
                 console.log("[getMatchDetails] Refresh requested, fetching from APIs...");
             }
             
             // If not in DB or refresh requested, fetch from APIs
             // Parallelize independent API calls for better performance
             console.log("[getMatchDetails] Starting parallel API calls...");
-            const [resultDetails, gamesResult, hkjcData] = await Promise.all([
+            const [resultDetails, gamesResult, hkjcMatch] = await Promise.all([
                 API.GET(Global.footylogicDetails + id).catch(err => ({ status: 500, data: null, error: err })),
                 API.GET(Global.footylogicGames).catch(err => ({ status: 500, data: null, error: err })),
-                ApiHKJC().catch((err: any) => { console.error("[getMatchDetails] Error fetching HKJC:", err); return []; })
+                ApiHKJCMatchById(id).catch((err: any) => { console.error("[getMatchDetails] Error fetching HKJC:", err); return null; })
             ]);
             
             // Extract match event from games result first (this is more reliable)
@@ -511,7 +525,6 @@ class MatchController {
             // Check if we have match data from DB or games API
             if (!existingMatchData && !matchEvent && !footylogicDetails) {
                 // Fallback: match may be from HKJC only (e.g. U20 women's not in FootyLogic) or from a stale list
-                const hkjcMatch = Array.isArray(hkjcData) ? hkjcData.find((x: HKJC) => x.id === id) : null;
                 if (hkjcMatch) {
                     const m = hkjcMatch;
                     let matchDate = m.matchDate?.split("+")[0].split("T")[0] ?? "";
@@ -602,7 +615,6 @@ class MatchController {
             const matchData: Match = existingMatchData ? { ...existingMatchData, ...matchDataFromAPI } : matchDataFromAPI;
 
             // Apply HKJC data: Chinese names + 主客和 (HAD), 讓球 (HDC), 大細 (HiLo/TG)
-            const hkjcMatch = hkjcData.find((x: HKJC) => x.id === id);
             if (hkjcMatch) {
                 if (hkjcMatch.homeTeam?.name_ch) {
                     matchData.homeTeamName = hkjcMatch.homeTeam.name_ch;
@@ -942,6 +954,114 @@ class MatchController {
         }
     }
 
+
+    /**
+     * Background enrichment: fetch external APIs and update DB/cache.
+     * Called via setImmediate when returning partial data to the client.
+     */
+    private static async enrichMatchInBackground(id: string) {
+        try {
+            console.log("[enrichBackground] Starting for", id);
+            const matchRef = doc(db, Tables.matches, id);
+            const matchSnap = await getDoc(matchRef);
+            if (!matchSnap.exists()) return;
+            const matchData = matchSnap.data() as Match;
+
+            // Skip if already complete
+            if (matchData.lastGames?.homeTeam && matchData.lastGames?.awayTeam) return;
+
+            // Parallel: FootyLogic details + games + HKJC single match
+            const [resultDetails, gamesResult, hkjcMatch] = await Promise.all([
+                API.GET(Global.footylogicDetails + id).catch(() => ({ status: 500, data: null })),
+                API.GET(Global.footylogicGames).catch(() => ({ status: 500, data: null })),
+                ApiHKJCMatchById(id).catch(() => null)
+            ]);
+
+            // Extract match event
+            let matchEvent: any = null;
+            if (gamesResult.status === 200 && gamesResult.data?.data) {
+                for (const daum of gamesResult.data.data) {
+                    const event = daum.events?.find((e: any) => e.eventId === id);
+                    if (event) { matchEvent = event; break; }
+                }
+            }
+
+            const footylogicDetails = resultDetails.status === 200 && resultDetails.data?.statusCode === 200 ? resultDetails.data.data : null;
+
+            // Merge updates
+            const updates: any = {};
+
+            if (footylogicDetails) {
+                if (footylogicDetails.homeTeamLogo && !matchData.homeTeamLogo) updates.homeTeamLogo = Global.footylogicImg + footylogicDetails.homeTeamLogo + ".png";
+                if (footylogicDetails.awayTeamLogo && !matchData.awayTeamLogo) updates.awayTeamLogo = Global.footylogicImg + footylogicDetails.awayTeamLogo + ".png";
+                if (footylogicDetails.homeTeamId) updates.homeTeamId = footylogicDetails.homeTeamId;
+                if (footylogicDetails.awayTeamId) updates.awayTeamId = footylogicDetails.awayTeamId;
+                if (footylogicDetails.homeTeamName) updates.homeTeamNameEn = footylogicDetails.homeTeamName;
+                if (footylogicDetails.awayTeamName) updates.awayTeamNameEn = footylogicDetails.awayTeamName;
+            }
+
+            if (matchEvent) {
+                if (matchEvent.homeTeamLogo && !matchData.homeTeamLogo && !updates.homeTeamLogo) updates.homeTeamLogo = matchEvent.homeTeamLogo;
+                if (matchEvent.awayTeamLogo && !matchData.awayTeamLogo && !updates.awayTeamLogo) updates.awayTeamLogo = matchEvent.awayTeamLogo;
+            }
+
+            // HKJC markets
+            if (hkjcMatch) {
+                const markets = extractHKJCMarkets(hkjcMatch);
+                if (markets.hadHomePct != null) updates.hadHomePct = markets.hadHomePct;
+                if (markets.hadDrawPct != null) updates.hadDrawPct = markets.hadDrawPct;
+                if (markets.hadAwayPct != null) updates.hadAwayPct = markets.hadAwayPct;
+                if (markets.condition) updates.condition = markets.condition;
+                if (markets.hiloLines?.length) updates.hiloLines = markets.hiloLines;
+                if (markets.hilMainLine) updates.hilMainLine = markets.hilMainLine;
+            }
+
+            // Last games
+            const homeTeamId = updates.homeTeamId || matchData.homeTeamId;
+            const awayTeamId = updates.awayTeamId || matchData.awayTeamId;
+            if (homeTeamId && awayTeamId) {
+                try {
+                    const lgRes = await API.GET(Global.footylogicRecentForm + "&homeTeamId=" + homeTeamId + "&awayTeamId=" + awayTeamId + "&marketGroupId=1&optionIdH=1&optionIdA=1&mode=1");
+                    if (lgRes.status === 200 && lgRes.data?.statusCode === 200) {
+                        const lastGames = parseToInformationForm(lgRes.data.data, matchData.homeTeamName ?? "", matchData.awayTeamName ?? "");
+                        updates.lastGames = lastGames;
+                    }
+                } catch { /* ignore */ }
+            }
+
+            // Fixture + predictions
+            if (!matchData.fixture_id) {
+                try {
+                    const merged = { ...matchData, ...updates } as Match;
+                    const fixture = await GetFixture(merged);
+                    if (fixture?.id) {
+                        updates.fixture_id = fixture.id;
+                        updates.league_id = fixture.league_id;
+                        if (fixture.homeLogo && !matchData.homeTeamLogo && !updates.homeTeamLogo) updates.homeTeamLogo = fixture.homeLogo;
+                        if (fixture.awayLogo && !matchData.awayTeamLogo && !updates.awayTeamLogo) updates.awayTeamLogo = fixture.awayLogo;
+                    }
+                } catch { /* ignore */ }
+            }
+
+            const fixtureId = updates.fixture_id || matchData.fixture_id;
+            if (fixtureId && (!matchData.predictions || !matchData.predictions.homeWinRate)) {
+                try {
+                    const predictions = await Predictions(fixtureId);
+                    if (predictions) updates.predictions = predictions;
+                } catch { /* ignore */ }
+            }
+
+            if (Object.keys(updates).length > 0) {
+                await setDoc(matchRef, updates, { merge: true });
+                await cacheDel(CacheKeys.matchDetail(id));
+                await cacheDel(CacheKeys.matchesList(false));
+                await cacheDel(CacheKeys.matchesList(true));
+                console.log("[enrichBackground] Updated", id, "with", Object.keys(updates).join(", "));
+            }
+        } catch (error) {
+            console.warn("[enrichBackground] Error for", id, error);
+        }
+    }
 
     static async analyzeMatch(req: Request, res: Response) {
         const { id } = req.params;

@@ -1,17 +1,18 @@
-import { useQuery, UseQueryResult } from "@tanstack/react-query";
+import { useQuery, useQueryClient, UseQueryResult } from "@tanstack/react-query";
 import API from "../api/api";
 import AppGlobal from "../ultis/global";
 import { Probability } from "../models/probability";
+import { Match } from "../models/match";
 
 export const useProbability = (
     id: string
 ): UseQueryResult<Probability, Error> => {
+    const queryClient = useQueryClient();
     return useQuery<Probability, Error>({
         queryKey: ["probability", id],
         queryFn: async () => {
             try {
-                // refresh=false lets backend use Redis cache (fast). Use refresh=true only when refetching.
-                const url = AppGlobal.baseURL + "match/match-data/" + id + "?refresh=false&_t=" + Date.now();
+                const url = AppGlobal.baseURL + "match/match-data/" + id + "?refresh=false";
                 const res = await API.GET(url);
                 if (res.status === 200 && res.data) return res.data;
                 throw new Error(`Failed to fetch match details: ${res.status}`);
@@ -20,11 +21,18 @@ export const useProbability = (
                 throw error;
             }
         },
-        refetchOnMount: false, // Use cached data if available
-        refetchOnWindowFocus: false, // Disable to reduce unnecessary requests
-        staleTime: 2 * 60 * 1000, // 2 minutes - balance freshness and performance
-        gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-        retry: 2, // Retry failed requests
+        // Seed from match list cache so the header renders instantly
+        placeholderData: () => {
+            const matchList = queryClient.getQueryData<Match[]>(["matchs"]);
+            if (!matchList) return undefined;
+            const found = matchList.find(m => m.id === id || m.eventId === id);
+            return found ? (found as unknown as Probability) : undefined;
+        },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        staleTime: 2 * 60 * 1000,
+        gcTime: 10 * 60 * 1000,
+        retry: 2,
         retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     });
 };

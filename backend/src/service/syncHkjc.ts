@@ -9,7 +9,7 @@ import { Match } from "../model/match.model";
 import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from "../database/db";
 import { db } from "../firebase/firebase";
 import Tables from "../ultis/tables.ultis";
-import { cacheDel, CacheKeys } from "../cache/redis";
+import { cacheDel, cacheSet, CacheKeys } from "../cache/redis";
 
 export async function syncHkjcToMatches(): Promise<void> {
   try {
@@ -86,6 +86,8 @@ export async function syncHkjcToMatches(): Promise<void> {
     }
 
     console.log("[syncHkjc] Synced", hkjc.length, "matches to DB");
+    // Cache raw HKJC list so getMatchs can skip the live API call (TTL 6 min > 5 min sync interval)
+    await cacheSet(CacheKeys.hkjcRawList(), hkjc, 360);
     await cacheDel(CacheKeys.matchesList(false));
     await cacheDel(CacheKeys.matchesList(true));
   } catch (err) {

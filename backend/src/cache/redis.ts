@@ -74,6 +74,8 @@ export async function cacheDelPattern(pattern: string): Promise<void> {
 export const CacheKeys = {
   matchesList: (refresh?: boolean) => `matches:list:${refresh ? "refresh" : "default"}`,
   matchDetail: (id: string) => `match:${id}`,
+  /** Raw HKJC match list cached from sync cron */
+  hkjcRawList: () => "hkjc:matchlist:raw",
   /** Lock key for batch analysis – only one Gemini batch runs at a time */
   analysisBatchLock: () => "analysis:batch:lock",
   /** All-match analysis response cache (optional) */
