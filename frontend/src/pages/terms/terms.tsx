@@ -57,6 +57,13 @@ function TermsPage() {
                         </p>
                     </div>
 
+                    {/* Legal Disclaimer */}
+                    <div className="bg-black rounded-xl p-6 mb-8 border border-white/20">
+                        <p className="text-white text-base sm:text-lg font-bold leading-relaxed">
+                            用戶使用本系統提供的足球分析數據時，必須只透過香港賽馬會（HKJC）足智彩等香港合法投注平台進行任何投注。本系統不提供、不推廣亦不便利任何非法投注活動。未滿18歲人士不得投注。如有需要尋求輔導，可致電平和基金熱線 1834 633。
+                        </p>
+                    </div>
+
                     {/* Welcome Section */}
                     <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-md rounded-2xl p-8 mb-8 border border-white/10 shadow-2xl">
                         <p className="text-white text-lg leading-relaxed">

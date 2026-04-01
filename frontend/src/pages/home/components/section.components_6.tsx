@@ -27,6 +27,13 @@ export function SectionComponent6() {
             </p>
 
             <div className="h-12" />
+
+            {/* Legal Disclaimer */}
+            <div className="w-full bg-black py-6 px-4">
+                <p className="text-center max-w-3xl mx-auto text-white text-sm sm:text-base font-bold leading-relaxed">
+                    用戶使用本系統提供的足球分析數據時，必須只透過香港賽馬會（HKJC）足智彩等香港合法投注平台進行任何投注。本系統不提供、不推廣亦不便利任何非法投注活動。未滿18歲人士不得投注。如有需要尋求輔導，可致電平和基金熱線 1834 633。
+                </p>
+            </div>
         </section>
     );
 }
