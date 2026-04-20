@@ -94,13 +94,6 @@ export function CardMatch({
     return (
         <>
             <div className="relative mb-2">
-                {/* Crowns above the card */}
-                {higherWinRate > 70 && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex justify-center">
-                        <Crown winRate={higherWinRate} size="w-4 sm:w-5" />
-                    </div>
-                )}
-
                 <div
                     onClick={handleClick}
                     className="flex rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] cursor-pointer w-full"
@@ -118,13 +111,13 @@ export function CardMatch({
                         {/* Home team */}
                         <div className="flex flex-col items-center flex-1 min-w-0">
                             <img
-                                src={match.homeTeamLogo || AppAssets.logo}
+                                src={match.homeTeamLogo || AppAssets.logo_black}
                                 alt={teams[0]}
                                 className="sm:w-14 sm:h-14 w-10 h-10 object-contain"
                                 loading="lazy"
                                 onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
                                     e.currentTarget.onerror = null;
-                                    e.currentTarget.src = AppAssets.logo;
+                                    e.currentTarget.src = AppAssets.logo_black;
                                 }}
                             />
                             <p className="sm:text-sm text-[10px] font-bold mt-1 text-center text-gray-800 leading-tight"
@@ -135,7 +128,7 @@ export function CardMatch({
                         </div>
 
                         {/* Center info */}
-                        <div className="flex flex-col items-center justify-center gap-0.5 flex-shrink-0 px-1">
+                        <div className="relative flex flex-col items-center justify-center gap-0.5 flex-shrink-0 px-1 sm:px-2">
                             {/* League flag + name */}
                             <div className="flex flex-row items-center gap-1">
                                 {flagUrl && (
@@ -174,18 +167,25 @@ export function CardMatch({
                                     <span className="text-[6px] sm:text-[8px] font-semibold text-black/60">{t("resultStatistics")}</span>
                                 </div>
                             )}
+
+                            {/* Crown shown near center info (requested position) */}
+                            {higherWinRate > 70 && (
+                                <div className="absolute top-1/2 -right-4 sm:-right-5 -translate-y-1/2 z-10">
+                                    <Crown winRate={higherWinRate} size="w-4 sm:w-5" />
+                                </div>
+                            )}
                         </div>
 
                         {/* Away team */}
                         <div className="flex flex-col items-center flex-1 min-w-0">
                             <img
-                                src={match.awayTeamLogo || AppAssets.logo}
+                                src={match.awayTeamLogo || AppAssets.logo_black}
                                 alt={teams[1]}
                                 className="sm:w-14 sm:h-14 w-10 h-10 object-contain"
                                 loading="lazy"
                                 onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
                                     e.currentTarget.onerror = null;
-                                    e.currentTarget.src = AppAssets.logo;
+                                    e.currentTarget.src = AppAssets.logo_black;
                                 }}
                             />
                             <p className="sm:text-sm text-[10px] font-bold mt-1 text-center text-gray-800 leading-tight"

@@ -38,7 +38,7 @@ function HeaderDetailsComponent({
 
     return (
         <div className="w-full flex flex-col items-center">
-            <div className="sm:w-2/3 w-5/6 flex">
+            <div className="sm:w-2/3 w-5/6">
                 <CardMatch
                     widht={"100%"}
                     navigate={navigate}

@@ -5,6 +5,8 @@
 import { db, doc, setDoc } from "../database/db";
 import Tables from "../ultis/tables.ultis";
 import { GetFixture } from "./getFixture";
+import { API } from "../api/api";
+import Global from "../ultis/global.ultis";
 
 const CONCURRENCY = 4;
 /** No cap: process all matches that need logos so last-date matches get logos too */
@@ -56,12 +58,39 @@ export async function fetchLogosForList(list: MatchItem[]): Promise<MatchItem[]>
       awayTeamNameEn: m.awayTeamNameEn || "",
     };
     const fixture = await GetFixture(matchForFixture as any);
-    if (!fixture || (!fixture.homeLogo && !fixture.awayLogo)) return { id: m.id, home: "", away: "" };
-    return {
-      id: m.id,
-      home: fixture.homeLogo || "",
-      away: fixture.awayLogo || "",
-    };
+    if (fixture && (fixture.homeLogo || fixture.awayLogo)) {
+      return {
+        id: m.id,
+        home: fixture.homeLogo || "",
+        away: fixture.awayLogo || "",
+      };
+    }
+
+    // Fallback: some matches are not reliably matched by fixture lookup.
+    // Try FootyLogic details by event id to recover team logo ids.
+    try {
+      const detailsRes = await API.GET(Global.footylogicDetails + m.id);
+      const detailsData = detailsRes?.data?.data;
+      if (
+        detailsRes?.status === 200 &&
+        detailsRes?.data?.statusCode === 200 &&
+        detailsData
+      ) {
+        const home = detailsData.homeTeamLogo
+          ? `${Global.footylogicImg}${detailsData.homeTeamLogo}.png`
+          : "";
+        const away = detailsData.awayTeamLogo
+          ? `${Global.footylogicImg}${detailsData.awayTeamLogo}.png`
+          : "";
+        if (home || away) {
+          return { id: m.id, home, away };
+        }
+      }
+    } catch (e) {
+      console.warn("[fetchLogosForList] FootyLogic fallback failed for", m.id, e);
+    }
+
+    return { id: m.id, home: "", away: "" };
   });
 
   for (const r of results) {
