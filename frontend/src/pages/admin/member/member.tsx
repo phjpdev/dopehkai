@@ -304,8 +304,8 @@ function MembersPage() {
 
             <AppBarComponent />
 
-            <div className="mt-24 flex justify-center">
-                <div className="bg-gray-900 p-6 rounded-lg shadow-lg w-5/6">
+            <div className="mt-24 flex justify-center px-2 sm:px-0">
+                <div className="bg-gray-900 p-4 sm:p-6 rounded-lg shadow-lg w-[96%] sm:w-5/6">
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", marginBottom: "16px" }}>
                         <ThemedText type="defaultSemiBold" className="text-xl" colorText="white">
                             {t("member")}
@@ -466,11 +466,14 @@ function MembersPage() {
             <Dialog
                 open={openDialog}
                 onClose={handleDialogClose}
+                fullWidth
                 sx={{
                     "& .MuiDialog-paper": {
                         backgroundColor: "white",
                         color: "white",
-                        margin: 10,
+                        width: { xs: "calc(100% - 48px)", sm: "400px" },
+                        maxWidth: "400px",
+                        margin: 0,
                         borderRadius: "8px",
                     }
                 }}
