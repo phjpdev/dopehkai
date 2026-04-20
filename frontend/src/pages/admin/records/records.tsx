@@ -277,11 +277,11 @@ function RecordsAdminPage() {
 
 
     return (
-        <div className="h-screen w-screen overflow-x-hidden bg-black">
+        <div className="h-screen w-full max-w-full overflow-x-hidden bg-black">
             <ToastContainer position="top-right" autoClose={3000} />
             <AppBarComponent />
-            <div className="mt-24 flex justify-center">
-                <div className="bg-gray-900 p-6 rounded-lg shadow-lg w-5/6">
+            <div className="mt-24 flex justify-center px-2 sm:px-0">
+                <div className="w-[96%] rounded-lg bg-gray-900 p-4 shadow-lg sm:w-5/6 sm:p-6">
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
                         <ThemedText type="defaultSemiBold" className="text-xl" colorText="white">
                             {t("records")}

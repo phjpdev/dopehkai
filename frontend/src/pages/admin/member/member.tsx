@@ -309,7 +309,7 @@ function MembersPage() {
     };
 
     return (
-        <div className="h-screen w-screen overflow-x-hidden bg-black">
+        <div className="h-screen w-full max-w-full overflow-x-hidden bg-black">
             <ToastContainer position="top-right" autoClose={3000} />
 
             <AppBarComponent />
