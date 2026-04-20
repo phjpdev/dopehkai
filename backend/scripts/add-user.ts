@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { db } from '../src/database/db';
 import { collection, doc, setDoc, query, getDocs, where } from '../src/database/db';
 import Tables from '../src/ultis/tables.ultis';

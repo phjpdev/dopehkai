@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { db } from "../firebase/firebase";
 import { addDoc, collection, deleteDoc, doc, getCountFromServer, getDoc, getDocs, orderBy, query, setDoc, updateDoc, where } from "../database/db";
 import Tables from "../ultis/tables.ultis";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 
 class AdminController {

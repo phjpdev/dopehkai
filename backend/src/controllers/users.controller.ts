@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { db } from "../firebase/firebase";
 import { collection, doc, getDoc, getDocs, query, setDoc, where } from "../database/db";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { SessionService } from "../service/sessionService";
 import Tables from "../ultis/tables.ultis";
 import { AuthService } from "../service/authService";
