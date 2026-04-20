@@ -60,6 +60,16 @@ export class SessionService {
         const memberDoc = await getDoc(memberRef);
         if (memberDoc.exists()) {
             const memberData = memberDoc.data();
+            if (memberData.isVvip === true) {
+                const now = Date.now();
+                const expiresAt = sessionData.expiresAt?.toMillis ? sessionData.expiresAt.toMillis() : sessionData.expiresAt;
+                const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+                if (!expiresAt || (expiresAt - now) < sevenDaysMs) {
+                    const newExpires = Timestamp.fromDate(new Date(now + 30 * 24 * 60 * 60 * 1000));
+                    await setDoc(Ref, { ...sessionData, expiresAt: newExpires.toMillis() });
+                }
+                return { userId };
+            }
             const vipDateStr = memberData.date;
             if (vipDateStr) {
                 const vipDate = new Date(vipDateStr);

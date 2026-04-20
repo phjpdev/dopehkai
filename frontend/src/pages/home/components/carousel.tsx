@@ -131,20 +131,24 @@ export function HeroCarousel({
                         {
                             match.length > 1
                                 ?
-                                <div className="flex flex-row items-center justify-around w-11/12 cursor-pointer">
-                                    <CardMatch
-                                        widht={"50%"}
-                                        navigate={navigate}
-                                        match={match[0]}
-                                        teams={[getTeamNameInCurrentLanguage(match[0].homeLanguages, match[0].homeTeamName), getTeamNameInCurrentLanguage(match[0].awayLanguages, match[0].awayTeamName)]}
-                                    />
-                                    <div className="flex w-32" />
-                                    <CardMatch
-                                        widht={"50%"}
-                                        navigate={navigate}
-                                        match={match[1]}
-                                        teams={[getTeamNameInCurrentLanguage(match[1].homeLanguages, match[1].homeTeamName), getTeamNameInCurrentLanguage(match[1].awayLanguages, match[1].awayTeamName)]}
-                                    />
+                                <div className="flex flex-row items-center justify-between w-11/12 cursor-pointer">
+                                    <div className="w-[39%]">
+                                        <CardMatch
+                                            widht={"50%"}
+                                            navigate={navigate}
+                                            match={match[0]}
+                                            teams={[getTeamNameInCurrentLanguage(match[0].homeLanguages, match[0].homeTeamName), getTeamNameInCurrentLanguage(match[0].awayLanguages, match[0].awayTeamName)]}
+                                        />
+                                    </div>
+                                    <div className="flex w-12" />
+                                    <div className="w-[39%]">
+                                        <CardMatch
+                                            widht={"50%"}
+                                            navigate={navigate}
+                                            match={match[1]}
+                                            teams={[getTeamNameInCurrentLanguage(match[1].homeLanguages, match[1].homeTeamName), getTeamNameInCurrentLanguage(match[1].awayLanguages, match[1].awayTeamName)]}
+                                        />
+                                    </div>
                                 </div>
                                 : <></>
                         }

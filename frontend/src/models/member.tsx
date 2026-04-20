@@ -4,5 +4,6 @@ export interface Member {
     price: string;
     date: string;
     ageRange: string;
+    isVvip?: boolean;
     created_at: string;
 };

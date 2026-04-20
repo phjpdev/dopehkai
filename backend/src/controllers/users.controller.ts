@@ -271,6 +271,9 @@ class UsersController {
         const Snapshot = await getDoc(Ref);
         if (Snapshot.exists()) {
             const data = Snapshot.data();
+            if (data.isVvip === true) {
+                return res.status(200).json({ message: "Valid VVIP access" });
+            }
             const vipDateStr = data.date;
             if (!vipDateStr) {
                 res.status(400).json({ message: "No VIP date found" });

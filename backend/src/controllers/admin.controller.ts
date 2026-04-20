@@ -35,6 +35,7 @@ class AdminController {
                 const now = new Date();
                 docs = docs.filter(doc => {
                     const data = doc.data();
+                    if (data.isVvip === true) return true;
                     const date = data.date;
                     if (!date) return false;
                     const d = new Date(date);
@@ -52,6 +53,7 @@ class AdminController {
                     price: data.price,
                     ageRange: data.ageRange,
                     date: data.date,
+                    isVvip: data.isVvip === true,
                     created_at: data.created_at,
                 };
             });
@@ -70,9 +72,12 @@ class AdminController {
 
     static async createMember(req: Request, res: Response) {
         try {
-            const { email, password, price, date, user, ageRange } = req.body;
-            if (!email || !password || !price || !date) {
+            const { email, password, price, date, user, ageRange, isVvip } = req.body;
+            if (!email || !password || !price) {
                 return res.status(400).json({ error: "All fields are required" });
+            }
+            if (isVvip === true && !date) {
+                return res.status(400).json({ error: "VVIP requires an expiration date" });
             }
 
             const membersRef = collection(db, Tables.members);
@@ -102,6 +107,7 @@ class AdminController {
                 password: hashedPassword,
                 price,
                 date,
+                isVvip: isVvip === true,
                 created_at: new Date().toISOString()
             };
 
@@ -120,7 +126,7 @@ class AdminController {
     static async updateMember(req: Request, res: Response) {
         try {
             const { id } = req.params;
-            const { email, password, price, date, ageRange } = req.body;
+            const { email, password, price, date, ageRange, isVvip } = req.body;
 
             const memberRef = doc(db, Tables.members, id);
             const memberSnapshot = await getDoc(memberRef);
@@ -128,6 +134,9 @@ class AdminController {
                 return res.status(404).json({ error: "Member not found" });
             }
             const memberData = memberSnapshot.data();
+            if (isVvip === true && !(date || memberData.date)) {
+                return res.status(400).json({ error: "VVIP requires an expiration date" });
+            }
             const membersRef = collection(db, Tables.members);
             const q = query(membersRef, where("email", "==", email));
             const querySnapshot = await getDocs(q);
@@ -146,6 +155,7 @@ class AdminController {
                 email: email || memberData.email,
                 price: price || memberData.price,
                 date: date || memberData.date,
+                isVvip: isVvip === true ? true : memberData.isVvip === true ? true : false,
                 created_at: memberData.created_at,
             };
 
@@ -366,7 +376,7 @@ class AdminController {
                 platforms[platform].total++;
 
                 const vipDate = data.date ? new Date(data.date) : null;
-                const isVip = vipDate && !isNaN(vipDate.getTime()) && vipDate.getTime() > now.getTime();
+                const isVip = data.isVvip === true || (vipDate && !isNaN(vipDate.getTime()) && vipDate.getTime() > now.getTime());
                 if (isVip) {
                     platforms[platform].vip++;
                 }

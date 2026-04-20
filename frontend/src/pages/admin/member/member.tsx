@@ -48,6 +48,7 @@ function MembersPage() {
     });
     const [showPassword, setShowPassword] = useState(false);
     const [isVip, setIsVip] = useState(false);
+    const [isVvip, setIsVvip] = useState(false);
     const [vipDuration, setVipDuration] = useState("");
     const [errors, setErrors] = useState({
         email: "",
@@ -93,7 +94,7 @@ function MembersPage() {
             tempErrors.price = "請輸入有效的價格";
             isValid = false;
         }
-        if (isVip && !formData.date) {
+        if ((isVip || isVvip) && !formData.date) {
             tempErrors.date = "請選擇 VIP 到期日期";
             isValid = false;
         }
@@ -109,8 +110,12 @@ function MembersPage() {
     const handleFormSubmit = async () => {
         if (validateForm()) {
             try {
+                const payload = {
+                    ...formData,
+                    isVvip,
+                };
                 if (editId) {
-                    const res = await API.PUT(`${AppGlobal.baseURL}admin/member/${editId}`, formData);
+                    const res = await API.PUT(`${AppGlobal.baseURL}admin/member/${editId}`, payload);
                     if (res.status == 200) {
                         handleDialogClose();
                         await queryClient.refetchQueries({ queryKey: ["members"] });
@@ -119,7 +124,7 @@ function MembersPage() {
                         alert(res.data.error);
                     }
                 } else {
-                    const res = await API.POST(`${AppGlobal.baseURL}admin/member`, formData);
+                    const res = await API.POST(`${AppGlobal.baseURL}admin/member`, payload);
                     if (res.status == 200) {
                         handleDialogClose();
                         await queryClient.refetchQueries({ queryKey: ["members"] });
@@ -144,15 +149,16 @@ function MembersPage() {
         },
         {
             accessorKey: "date",
-            header: () => <span className="sm:text-base text-[10px] font-medium">{"VIP到期時間"}</span>,
+            header: () => <span className="sm:text-base text-[10px] font-medium">{"VIP/VVIP到期時間"}</span>,
             cell: (props: any) => (
                 <Box sx={{ display: "flex", gap: 1 }}>
                     {(() => {
                         const value = props.getValue();
+                        const isVvipMember = props.row.original?.isVvip === true;
                         const days = value ? getDays(value) : null;
                         return days !== null && days > 0 ? (
-                            <span className="bg-green-500 text-white sm:px-4 sm:py-2 px-2 py-1 rounded shadow font-bold text-center inline-block min-w-[70px]">
-                                {days + "天"}
+                            <span className="bg-green-500 text-white sm:px-3 sm:py-2 px-2 py-1 rounded shadow font-bold text-center inline-block min-w-[86px] sm:text-sm text-[10px]">
+                                {(isVvipMember ? "VVIP-" : "VIP-") + days + "天"}
                             </span>
                         ) : undefined;
                     })()}
@@ -268,6 +274,7 @@ function MembersPage() {
         setErrors({ email: "", password: "", price: "", date: "", ageRange: "" });
         setShowPassword(false);
         setIsVip(false);
+        setIsVvip(false);
         setVipDuration("");
         setOpenDialog(false);
         setEditId(undefined);
@@ -275,14 +282,17 @@ function MembersPage() {
 
     const handleDialogOpen = () => {
         setIsVip(false);
+        setIsVvip(false);
         setVipDuration("");
         setOpenDialog(true);
     };
 
     const handleEdit = (e: Member) => {
         setEditId(e.id);
+        const hasVvip = e.isVvip === true;
         const hasVip = !!(e.date && e.price && new Date(e.date) > new Date());
-        setIsVip(hasVip);
+        setIsVip(hasVvip ? false : hasVip);
+        setIsVvip(hasVvip);
         setVipDuration("");
         setFormData({
             email: e.email,
@@ -558,18 +568,38 @@ function MembersPage() {
                                             setFormData((prev) => ({ ...prev, date: "" }));
                                             setVipDuration("");
                                         }
+                                        if (e.target.checked) {
+                                            setIsVvip(false);
+                                        }
                                     }}
                                     sx={{ color: "black", "&.Mui-checked": { color: "green" } }}
                                 />
                             }
                             label={<span className="font-semibold text-black">設為 VIP 會員</span>}
                         />
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    checked={isVvip}
+                                    onChange={(e) => {
+                                        setIsVvip(e.target.checked);
+                                        if (e.target.checked) {
+                                            setIsVip(false);
+                                            setFormData((prev) => ({ ...prev, date: "" }));
+                                            setVipDuration("");
+                                        }
+                                    }}
+                                    sx={{ color: "black", "&.Mui-checked": { color: "#d97706" } }}
+                                />
+                            }
+                            label={<span className="font-semibold text-black">設為 VVIP 會員</span>}
+                        />
                     </div>
 
-                    {/* VIP duration — only visible when VIP is checked */}
-                    {isVip && (
+                    {/* VIP/VVIP duration — visible for both VIP and VVIP */}
+                    {(isVip || isVvip) && (
                         <>
-                            <p className="text-sm text-gray-500 mt-1 mb-2">VIP 時長</p>
+                            <p className="text-sm text-gray-500 mt-1 mb-2">{isVvip ? "VVIP 時長" : "VIP 時長"}</p>
                             <div className="flex flex-wrap gap-2 mb-3">
                                 {[
                                     { label: "7天", days: 7 },
@@ -598,7 +628,7 @@ function MembersPage() {
                             </div>
 
                             <TextField
-                                label="VIP 到期日期"
+                                label={isVvip ? "VVIP 到期日期" : "VIP 到期日期"}
                                 fullWidth
                                 margin="normal"
                                 type="date"
@@ -618,7 +648,7 @@ function MembersPage() {
                             {formData.date && new Date(formData.date) > new Date() && (
                                 <div className="flex items-center gap-2 mt-2">
                                     <span className="bg-green-500 text-white px-3 py-1 rounded text-sm font-bold">
-                                        VIP {Math.ceil((new Date(formData.date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} 天
+                                        {(isVvip ? "VVIP " : "VIP ") + Math.ceil((new Date(formData.date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) + " 天"}
                                     </span>
                                 </div>
                             )}
