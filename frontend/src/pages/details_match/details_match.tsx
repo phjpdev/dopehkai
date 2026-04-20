@@ -208,12 +208,7 @@ function DetailsMatchPage() {
 
                     <AppBarComponent />
                     <div className="mt-24" >
-                        {displayData && (
-                            <HeaderDetailsComponent
-                                data={displayData}
-                                showAnalysisLabel={accessResolved && canSeeVipPicks}
-                            />
-                        )}
+                        {displayData && <HeaderDetailsComponent data={displayData} />}
 
                         {!accessResolved && (
                             <div style={{ marginTop: 30 }}>

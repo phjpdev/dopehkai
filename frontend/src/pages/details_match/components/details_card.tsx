@@ -86,32 +86,12 @@ function DetailsCardComponent({
         awayWinRate = awayWinRateCalculated === 0 ? Math.round(awayWin) : awayWinRateCalculated.toFixed(0);
     }
 
-    // Show hilo label: compare AI bestPick line with HKJC HIL main line, use the lower value
-    const getHiloLabel = () => {
-        const pick = probability.ia?.bestPick ?? probability.ia?.picks?.goals?.bestPick;
-        if (!pick) return null;
-        const match = pick.match(/^(OVER|UNDER)_(\d+\.?\d*)$/);
-        if (!match) return null;
-        const direction = match[1]; // "OVER" or "UNDER"
-        const aiLine = parseFloat(match[2]);
-        const hkjcLine = probability.hilMainLine ? parseFloat(probability.hilMainLine) : NaN;
-        // Use the lower of AI line and HKJC HIL main line
-        const displayLine = !isNaN(hkjcLine) && hkjcLine < aiLine ? hkjcLine : aiLine;
-        const key = `hilo_short_${direction.toLowerCase()}_${String(displayLine).replace(".", "_")}`;
-        const translated = t(key);
-        // If translation key exists, use it; otherwise build a fallback label
-        if (translated !== key) return translated;
-        return direction === "OVER" ? `大${displayLine}` : `細${displayLine}`;
-    };
-    const hiloLabel = getHiloLabel();
-    const conditionHome = hiloLabel ?? undefined;
-    const conditionAway = hiloLabel ?? undefined;
     return (
         <div className="w-full flex justify-center items-center flex-col">
             <div className="sm:w-2/3 w-5/6 flex flex-col h-48 bg-white rounded-lg mt-5 items-center justify-center">
 
                 <div className="flex items-start sm:w-2/3 w-5/6 mb-2">
-                    <Card name={getTeamNameInCurrentLanguage(probability.homeLanguages, probability.homeTeamName)} condition={conditionHome} img={probability.homeTeamLogo} probility={homeWin} />
+                    <Card name={getTeamNameInCurrentLanguage(probability.homeLanguages, probability.homeTeamName)} img={probability.homeTeamLogo} probility={homeWin} />
                 </div>
 
                 <p className="sm:text-sm text-sm font-heading sm:h-4 h-4 font-bold text-black text-center">
@@ -151,7 +131,7 @@ function DetailsCardComponent({
             <div className="sm:w-2/3 w-5/6 flex flex-col h-48 bg-white rounded-lg mt-5 items-center justify-center">
 
                 <div className="flex items-start sm:w-2/3 w-5/6 mb-2">
-                    <Card name={getTeamNameInCurrentLanguage(probability.awayLanguages, probability.awayTeamName)} condition={conditionAway} img={probability.awayTeamLogo} probility={awayWin} />
+                    <Card name={getTeamNameInCurrentLanguage(probability.awayLanguages, probability.awayTeamName)} img={probability.awayTeamLogo} probility={awayWin} />
                 </div>
 
                 <p className="sm:text-sm text-xs font-heading sm:h-4 h-4 font-bold text-black text-center">
