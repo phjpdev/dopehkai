@@ -41,6 +41,7 @@ function HeaderDetailsComponent({
             <div className="sm:w-2/3 w-5/6">
                 <CardMatch
                     widht={"100%"}
+                    crownPosition="topCenter"
                     navigate={navigate}
                     match={data}
                     teams={[getTeamNameInCurrentLanguage(data.homeLanguages, data.homeTeamName), getTeamNameInCurrentLanguage(data.awayLanguages, data.awayTeamName)]}

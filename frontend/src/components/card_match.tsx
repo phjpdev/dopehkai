@@ -13,6 +13,7 @@ export type Props = {
     teams: string[]
     id?: string
     widht?: any,
+    crownPosition?: "centerRight" | "topCenter"
     match: Match | Probability
     navigate: NavigateFunction
 };
@@ -39,6 +40,7 @@ function FormBadges({ form }: { form?: string }) {
 export function CardMatch({
     teams,
     id,
+    crownPosition = "centerRight",
     navigate,
     match,
 }: Props) {
@@ -93,6 +95,14 @@ export function CardMatch({
     return (
         <>
             <div className="relative mb-2">
+                {higherWinRate > 70 && crownPosition === "topCenter" && (
+                    <div
+                        className="absolute -top-5 left-1/2 -translate-x-1/2 ml-4 sm:ml-5 z-10 rounded-md px-2 py-1 shadow-sm flex items-center justify-center"
+                        style={{ background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 240, 240, 0.9) 100%)' }}
+                    >
+                        <Crown winRate={higherWinRate} size="w-4 sm:w-5" />
+                    </div>
+                )}
                 <div
                     onClick={handleClick}
                     className="flex rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] cursor-pointer w-full"
@@ -168,7 +178,7 @@ export function CardMatch({
                             )}
 
                             {/* Crown shown near center info (requested position) */}
-                            {higherWinRate > 70 && (
+                            {higherWinRate > 70 && crownPosition === "centerRight" && (
                                 <div className="absolute top-1/2 -right-4 sm:-right-5 -translate-y-1/2 z-10">
                                     <Crown winRate={higherWinRate} size="w-4 sm:w-5" />
                                 </div>
