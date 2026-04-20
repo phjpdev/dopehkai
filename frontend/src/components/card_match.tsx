@@ -39,7 +39,6 @@ function FormBadges({ form }: { form?: string }) {
 export function CardMatch({
     teams,
     id,
-    widht,
     navigate,
     match,
 }: Props) {
