@@ -63,6 +63,8 @@ export async function syncHkjcToMatches(): Promise<void> {
         awayTeamNameEn: m.awayTeam?.name_en,
         competitionName: m.tournament?.name_ch || m.tournament?.name_en || "",
         competitionId: parseInt(m.tournament?.id || "0", 10),
+        leagueCode: m.tournament?.code || "",
+        leagueNameProfileId: m.tournament?.nameProfileId || "",
         matchOutcome: "",
         homeForm: "",
         awayForm: "",

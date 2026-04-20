@@ -1,5 +1,6 @@
 import axios from "axios";
 import dotenv from 'dotenv';
+import { cacheGet, cacheSet } from "../cache/redis";
 dotenv.config();
 
 const key = process.env.KEY_API;
@@ -15,6 +16,10 @@ type Fixture = {
 };
 
 export const ApiFixtureByDate = async (date: string): Promise<Fixture[] | undefined> => {
+    const cacheKey = `fixtures:date:${date}`;
+    const cached = await cacheGet<Fixture[]>(cacheKey);
+    if (cached) return cached;
+
     let fixtures: Fixture[] = [];
     const options = {
         method: "GET",
@@ -41,6 +46,7 @@ export const ApiFixtureByDate = async (date: string): Promise<Fixture[] | undefi
                 });
             });
         }
+        await cacheSet(cacheKey, fixtures, 3600);
         return fixtures;
     } catch (error) {
         console.error(`Error fetching data for date ${date}: ${error}`);

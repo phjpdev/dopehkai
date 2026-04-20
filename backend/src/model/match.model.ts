@@ -39,6 +39,10 @@ export interface Match {
     hadHomePct?: string
     hadDrawPct?: string
     hadAwayPct?: string
+    /** HKJC tournament code e.g. "D2", "ACL", "CL" */
+    leagueCode?: string
+    /** HKJC tournament nameProfileId used to build flag image URL */
+    leagueNameProfileId?: string
     /** HKJC HiLo lines e.g. [{ line: "2.5", overPct, underPct }]. */
     hiloLines?: { line: string; overPct: string; underPct: string }[]
     /** HKJC HIL pool main available line condition, e.g. "2.5" */

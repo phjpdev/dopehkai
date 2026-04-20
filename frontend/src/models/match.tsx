@@ -44,6 +44,10 @@ export interface Match {
   awayTeamLogo: string
   ia?: ResultIA
   predictions?: Predictions
+  /** HKJC tournament code e.g. "D2", "ACL" */
+  leagueCode?: string
+  /** HKJC tournament nameProfileId for flag image URL */
+  leagueNameProfileId?: string
 }
 
 export interface LastGames {

@@ -48,8 +48,8 @@ async function getMatchIdsNeedingAnalysis(): Promise<
     }
     if (isNaN(kickTime.getTime())) continue;
 
-    // Once a match has completed analysis (ia), never overwrite it
-    if (data?.analysis_status === "completed" && data?.ia) continue;
+    // Skip completed matches that already have bestPick
+    if (data?.analysis_status === "completed" && data?.ia?.bestPick) continue;
 
     const home =
       data?.homeTeamNameEn || data?.homeTeamName || "Home";

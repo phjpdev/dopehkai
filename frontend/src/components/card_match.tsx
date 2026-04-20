@@ -5,9 +5,9 @@ import { Match } from "../models/match";
 import { useTranslation } from "react-i18next";
 import moment from 'moment-timezone';
 import { Probability } from "../models/probability";
-import useIsMobile from "../hooks/useIsMobile";
 import Crown from "./crown";
 import AppAssets from "../ultis/assets";
+import { getLeagueFlagUrl } from "../ultis/leagueFlag";
 
 export type Props = {
     teams: string[]
@@ -17,6 +17,25 @@ export type Props = {
     navigate: NavigateFunction
 };
 
+function FormBadges({ form }: { form?: string }) {
+    if (!form) return null;
+    const results = form.split(',').filter(Boolean).slice(-4);
+    if (results.length === 0) return null;
+    return (
+        <div className="flex flex-row gap-0.5 mt-1">
+            {results.map((z, i) => (
+                <div
+                    key={i}
+                    className="w-4 h-4 sm:w-5 sm:h-5 rounded flex items-center justify-center"
+                    style={{ backgroundColor: z === 'D' ? '#f97316' : z === 'L' ? '#ef4444' : '#22c55e' }}
+                >
+                    <span className="text-white text-[7px] sm:text-[9px] font-bold">{z}</span>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 export function CardMatch({
     teams,
     id,
@@ -25,123 +44,157 @@ export function CardMatch({
     match,
 }: Props) {
     const { t } = useTranslation();
-    const isMobile = useIsMobile();
     const [showModal, setShowModal] = useState(false);
 
     const dateStr = match.kickOff;
     moment.locale('zh-hk');
-    // Handle both "YYYY-MM-DD HH:mm" and ISO format "YYYY-MM-DDTHH:mm:ss..."
-    let date: moment.Moment;
-    if (dateStr.includes('T')) {
-        // ISO format: "2026-01-30T00:00:00.000+08:00"
-        date = moment.tz(dateStr, 'Asia/Hong_Kong');
-    } else {
-        // Format: "2026-01-30 01:30"
-        date = moment.tz(dateStr, 'YYYY-MM-DD HH:mm', 'Asia/Hong_Kong');
-    }
-    const day = date.date();
-    const chineseShortMonths = [
-        t('jan'),
-        t('feb'),
-        t('mar'),
-        t('apr'),
-        t('may'),
-        t('jun'),
-        t('jul'),
-        t('aug'),
-        t('sep'),
-        t('oct'),
-        t('nov'),
-        t('dec')
-    ];
-    const month = chineseShortMonths[date.month()];
+    const kickOffMoment = dateStr.includes('T')
+        ? moment.tz(dateStr, 'Asia/Hong_Kong')
+        : moment.tz(dateStr, 'YYYY-MM-DD HH:mm', 'Asia/Hong_Kong');
 
-    const homeWin = match.ia && match.ia.home ? match.ia.home : match.predictions && match.predictions.homeWinRate ? match.predictions.homeWinRate : null;
-    const awayWin = match.ia && match.ia.away ? match.ia.away : match.predictions && match.predictions.awayWinRate ? match.predictions.awayWinRate : null;
+    const day = kickOffMoment.date();
+    const chineseShortMonths = [
+        t('jan'), t('feb'), t('mar'), t('apr'), t('may'), t('jun'),
+        t('jul'), t('aug'), t('sep'), t('oct'), t('nov'), t('dec')
+    ];
+    const month = chineseShortMonths[kickOffMoment.month()];
+    const centerDate = kickOffMoment.format('MMM D');
+    const kickOffTime = kickOffMoment.format('HH:mm');
+
+    // Countdown until kickoff
+    const diffMinutes = kickOffMoment.diff(moment(), 'minutes');
+    let countdown: string | null = null;
+    if (diffMinutes > 0) {
+        countdown = diffMinutes >= 60 ? `in ${Math.floor(diffMinutes / 60)}h` : `in ${diffMinutes}m`;
+    }
+
+    const homeWin = match.ia?.home ?? match.predictions?.homeWinRate ?? null;
+    const awayWin = match.ia?.away ?? match.predictions?.awayWinRate ?? null;
+    const higherWinRate = homeWin != null && awayWin != null
+        ? Math.max(homeWin, awayWin)
+        : (homeWin ?? awayWin ?? 0);
+
+    const leagueCode = (match as Match).leagueCode;
+    const competitionName = (match as Match).competitionName;
+    const flagUrl = getLeagueFlagUrl(leagueCode);
+
+    const homeForm = match.homeForm;
+    const awayForm = match.awayForm;
 
     const handleClick = async () => {
         if (id) {
-            // Remember this match so the matches page can restore scroll position on back
             try {
                 sessionStorage.setItem("lastMatchId", String(id));
                 sessionStorage.setItem("lastMatchFrom", window.location.pathname || "");
-            } catch {
-                // ignore storage errors
-            }
-            // Allow navigation to details page for all users
-            // VIP check will be done on the details page
+            } catch { }
             navigate("/details-match/" + id);
         }
     };
 
     return (
         <>
-            <div
-                onClick={handleClick}
-                className="flex rounded-xl sm:h-32 h-22 border-none backdrop-blur-sm bg-gradient-to-l from-white/40 via-white/80 to-white 
-                 shadow-xl hover:shadow-2xl overflow-hidden transition-all duration-300 
-                 hover:scale-[1.02] cursor-pointer w-full mx-auto"
-                style={{ willChange: 'transform' }}
-            >
-                <div className="bg-black text-white sm:w-14 w-9 flex flex-col items-center justify-start py-4 text-center">
-                    <span className="sm:text-3xl text-1xl font-bold leading-none">{day}</span>
-                    <span className="text-xs font-semibold mt-1">{month.toUpperCase()}</span>
-                </div>
+            <div className="relative mb-2">
+                {/* Crowns above the card */}
+                {higherWinRate > 70 && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex justify-center">
+                        <Crown winRate={higherWinRate} size="w-4 sm:w-5" />
+                    </div>
+                )}
 
-                    <div className="flex flex-1 border border-gray-500 items-center justify-between py-4 px-6 text-[#191919] font-sans">
-                    <div className="flex items-center space-y-1 flex-row">
-                        <img
-                            src={match.homeTeamLogo || AppAssets.logo}
-                            alt={teams[0]}
-                            className="sm:w-16 sm:h-16 h-10 w-10 object-contain"
-                            loading="lazy"
-                            onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
-                                e.currentTarget.onerror = null;
-                                e.currentTarget.src = AppAssets.logo;
-                            }}
-                        />
-                        <div className="text-center ml-2 sm:w-48 w-36"
-                            style={{ width: widht }}>
-                            <p className="sm:text-base text-xs font-bold mt-1"> {teams[0]}</p>
-                        </div>
+                <div
+                    onClick={handleClick}
+                    className="flex rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] cursor-pointer w-full"
+                    style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(240,240,240,0.9) 100%)' }}
+                >
+                    {/* Date column */}
+                    <div className="bg-black text-white sm:w-14 w-10 flex flex-col items-center justify-center py-3 text-center flex-shrink-0">
+                        <span className="sm:text-2xl text-lg font-bold leading-none">{day}</span>
+                        <span className="text-[10px] sm:text-xs font-semibold mt-0.5">{month.toUpperCase()}</span>
                     </div>
 
-                    <div className="flex flex-col items-center justify-center">
-                        {/* Show crowns only when win rate > 70% (1 crown), > 80% (2), > 90% (3) */}
-                        {(() => {
-                            const higherWinRate = homeWin != null && awayWin != null
-                                ? (homeWin > awayWin ? homeWin : awayWin)
-                                : (homeWin ?? awayWin ?? 0);
-                            return higherWinRate > 70 ? (
-                                <div className="mb-1.5 flex justify-center">
-                                    <Crown winRate={higherWinRate} size="w-4 sm:w-5" />
-                                </div>
-                            ) : null;
-                        })()}
-                        <div className="flex flex-row items-center justify-center gap-1.5">
-                            <FaBasketball color="#000000" size={isMobile ? 5 : 10} />
-                            <div
-                                className="sm:text-[12px] text-[5px] font-semibold text-black/80 hover:text-black transition duration-200"
-                            >
-                                {t("resultStatistics")}
+                    {/* Main content */}
+                    <div className="flex flex-1 items-center justify-between py-3 px-2 sm:px-4 gap-1">
+
+                        {/* Home team */}
+                        <div className="flex flex-col items-center flex-1 min-w-0">
+                            <img
+                                src={match.homeTeamLogo || AppAssets.logo}
+                                alt={teams[0]}
+                                className="sm:w-14 sm:h-14 w-10 h-10 object-contain"
+                                loading="lazy"
+                                onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                                    e.currentTarget.onerror = null;
+                                    e.currentTarget.src = AppAssets.logo;
+                                }}
+                            />
+                            <p className="sm:text-sm text-[10px] font-bold mt-1 text-center text-gray-800 leading-tight"
+                                style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', maxWidth: 90 }}>
+                                {teams[0]}
+                            </p>
+                            <FormBadges form={homeForm} />
+                        </div>
+
+                        {/* Center info */}
+                        <div className="flex flex-col items-center justify-center gap-0.5 flex-shrink-0 px-1">
+                            {/* League flag + name */}
+                            <div className="flex flex-row items-center gap-1">
+                                {flagUrl && (
+                                    <img
+                                        src={flagUrl}
+                                        alt={competitionName || leagueCode || ""}
+                                        title={competitionName || ""}
+                                        className="h-3 w-4 sm:h-3.5 sm:w-6 object-cover rounded-[1px] flex-shrink-0"
+                                        onError={(e: any) => { e.target.style.display = 'none'; }}
+                                    />
+                                )}
+                                {(competitionName || leagueCode) && (
+                                    <span className="text-[7px] sm:text-[9px] font-semibold text-gray-600" style={{ maxWidth: 70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {competitionName || leagueCode}
+                                    </span>
+                                )}
                             </div>
-                        </div>
-                    </div>
 
-                    <div className="flex items-center space-y-1 flex-row">
-                        <div className="text-center ml-2 sm:w-48 w-36" style={{ width: widht }}>
-                            <p className="sm:text-base text-xs font-bold mt-1"> {teams[1]}</p>
+                            {/* VS */}
+                            <span className="text-base sm:text-lg font-bold text-gray-800">VS</span>
+
+                            {/* Date */}
+                            <span className="text-[9px] sm:text-[11px] text-gray-500 font-medium">{centerDate}</span>
+
+                            {/* Time */}
+                            <span className="text-sm sm:text-base font-bold" style={{ color: '#eab308' }}>{kickOffTime}</span>
+
+                            {/* Countdown or result statistics icon */}
+                            {countdown ? (
+                                <div className="flex items-center gap-0.5">
+                                    <span className="text-[8px] sm:text-[10px] text-gray-400">⏱ {countdown}</span>
+                                </div>
+                            ) : (
+                                <div className="flex flex-row items-center gap-1">
+                                    <FaBasketball color="#000000" size={8} />
+                                    <span className="text-[6px] sm:text-[8px] font-semibold text-black/60">{t("resultStatistics")}</span>
+                                </div>
+                            )}
                         </div>
-                        <img
-                            src={match.awayTeamLogo || AppAssets.logo}
-                            alt={teams[1]}
-                            className="sm:w-16 sm:h-16 h-10 w-10 object-contain"
-                            loading="lazy"
-                            onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
-                                e.currentTarget.onerror = null;
-                                e.currentTarget.src = AppAssets.logo;
-                            }}
-                        />
+
+                        {/* Away team */}
+                        <div className="flex flex-col items-center flex-1 min-w-0">
+                            <img
+                                src={match.awayTeamLogo || AppAssets.logo}
+                                alt={teams[1]}
+                                className="sm:w-14 sm:h-14 w-10 h-10 object-contain"
+                                loading="lazy"
+                                onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                                    e.currentTarget.onerror = null;
+                                    e.currentTarget.src = AppAssets.logo;
+                                }}
+                            />
+                            <p className="sm:text-sm text-[10px] font-bold mt-1 text-center text-gray-800 leading-tight"
+                                style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', maxWidth: 90 }}>
+                                {teams[1]}
+                            </p>
+                            <FormBadges form={awayForm} />
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -159,7 +212,6 @@ export function CardMatch({
                         <p className="mb-4 text-center text-black font-semibold">
                             {t("you_need_to_be_VIP")}
                         </p>
-
                         <div className="flex justify-end space-x-4">
                             <button
                                 className="text-black px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
@@ -167,13 +219,9 @@ export function CardMatch({
                             >
                                 {t("cancel")}
                             </button>
-
                             <button
                                 className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 transition"
-                                onClick={() => {
-                                    window.location.href = "/";
-                                    setShowModal(false);
-                                }}
+                                onClick={() => { window.location.href = "/"; setShowModal(false); }}
                             >
                                 {t("Contact_Us")}
                             </button>

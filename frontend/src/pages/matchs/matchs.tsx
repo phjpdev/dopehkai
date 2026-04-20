@@ -328,7 +328,7 @@ function MatchsPage() {
                                                 return null;
                                             }
                                             return (
-                                                <div key={matchId} id={`match-${matchId}`} className="mb-2 sm:w-2/3 w-5/6 mx-auto">
+                                                <div key={matchId} id={`match-${matchId}`} className="pt-4 w-full">
                                                     <CardMatch
                                                         widht={"100%"}
                                                         id={matchId}
@@ -383,7 +383,7 @@ function MatchsPage() {
                                                     return null;
                                                 }
                                                 return (
-                                                    <div key={matchId} id={`match-${matchId}`} className="mb-2 sm:w-2/3 w-5/6 mx-auto">
+                                                    <div key={matchId} id={`match-${matchId}`} className="pt-4 w-full">
                                                         <CardMatch
                                                             widht={"100%"}
                                                             id={matchId}
