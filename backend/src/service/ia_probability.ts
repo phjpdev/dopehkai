@@ -45,75 +45,89 @@ export async function IaProbality(match: Match, playersInjured: any): Promise<Re
         : "";
     const hkjcBlock = [hkjc1x2, hkjcHandicap, hkjcHilo].filter(Boolean).join(" ");
 
-    const prompt = `
-你是一個專業足球分析師,專門分析入球大小和比賽結果。你的分析不會看賠率去進行分析,會用最理智的方式去分析。
+    const prompt = `You are a professional football analyst. Analyze the following match and provide predictions for 4 betting markets.
 
-你必須根據以下因素進行深入分析:
-1. 具體天氣狀況 — 比賽當天的天氣(雨、風、高溫等)如何影響比賽節奏和入球數
-2. 具體消耗曲線 — 兩隊近期賽程密度,是否有體能疲勞,上一場比賽間隔天數
-3. 傷停名單進行更深入的球員分析 — 不只是數量,要分析受傷球員的位置和重要性(例如主力前鋒受傷vs替補後衛受傷影響完全不同)
-4. 近5場表現趨勢 — 是上升趨勢還是下滑趨勢
-5. 主客場表現差異
-6. 兩隊歷史交鋒記錄
+Match data:
+- Date: ${matchDataInput.data}
+- Home team: ${matchDataInput.home.name}
+  - Last 5 matches: ${matchDataInput.home.last5Matches.join(", ")}
+  - Average goals scored: ${matchDataInput.home.averageGoals?.toFixed(2) ?? "N/A"}
+  - Win rate: ${matchDataInput.home.winRate ? matchDataInput.home.winRate.toFixed(1) + "%" : "N/A"}
+  - Injured players: ${injuredHome}
+- Away team: ${matchDataInput.away.name}
+  - Last 5 matches: ${matchDataInput.away.last5Matches.join(", ")}
+  - Average goals scored: ${matchDataInput.away.averageGoals?.toFixed(2) ?? "N/A"}
+  - Win rate: ${matchDataInput.away.winRate ? matchDataInput.away.winRate.toFixed(1) + "%" : "N/A"}
+  - Injured players: ${injuredAway}
+${hkjcBlock ? `\nReference data (for context only, do NOT base predictions on odds): ${hkjcBlock}\n` : ""}
 
-比賽資料:
-- 日期: ${matchDataInput.data}
-- 主隊: ${matchDataInput.home.name}
-  - 近5場: ${matchDataInput.home.last5Matches.join(", ")}
-  - 場均入球: ${matchDataInput.home.averageGoals}
-  - 勝率: ${matchDataInput.home.winRate ? matchDataInput.home.winRate.toFixed(1) + "%" : "N/A"}
-  - 傷停人數: ${injuredHome}
-- 客隊: ${matchDataInput.away.name}
-  - 近5場: ${matchDataInput.away.last5Matches.join(", ")}
-  - 場均入球: ${matchDataInput.away.averageGoals}
-  - 勝率: ${matchDataInput.away.winRate ? matchDataInput.away.winRate.toFixed(1) + "%" : "N/A"}
-  - 傷停人數: ${injuredAway}
-${hkjcBlock ? `\nHKJC 參考數據（僅供參考,不要用賠率作為分析依據）: ${hkjcBlock}\n` : ""}
+Rules:
+- Base analysis on team form, strength, injuries, and home/away factors — NOT on odds
+- goals.bestPick MUST be exactly one of: "OVER_2.5", "UNDER_2.5", "OVER_3.5", "UNDER_3.5", "OVER_4.5", "UNDER_4.5"
+- had.bestPick MUST be exactly one of: "HOME", "DRAW", "AWAY"
+- handicap.bestPick MUST be exactly one of: "HOME_-0.5", "HOME_-1", "HOME_-1.5", "AWAY_+0.5", "AWAY_+1", "AWAY_+1.5", "LEVEL"
+- corners.bestPick MUST be exactly one of: "OVER_8.5", "UNDER_8.5", "OVER_9.5", "UNDER_9.5", "OVER_10.5", "UNDER_10.5"
+- confidence: integer between 55 and 90 representing prediction confidence
 
-重要規則:
-- 你的分析必須基於球隊實力、狀態、傷停影響、天氣等客觀因素,不是基於賠率
-- bestPick 只能從以下4個選項中選擇: OVER_2.5, UNDER_2.5, OVER_3.5, UNDER_3.5
-- 選擇你最有信心的入球大小分析,勝率要高
-- 如果你對任何選項都沒有足夠信心,仍然選擇最有把握的一個
+Respond ONLY with this JSON (no markdown, no extra text):
+{"home":number,"away":number,"draw":number,"picks":{"goals":{"bestPick":"OVER_2.5","confidence":70},"had":{"bestPick":"HOME","confidence":65},"handicap":{"bestPick":"HOME_-0.5","confidence":60},"corners":{"bestPick":"OVER_9.5","confidence":65}}}
 
-Respond ONLY with this JSON (no other text):
-{
-  "home": number,
-  "away": number,
-  "draw": number,
-  "bestPick": "OVER_2.5" | "UNDER_2.5" | "OVER_3.5" | "UNDER_3.5"
-}
-- home + away + draw = 100.
-- Exactly one bestPick from the 4 values above. Choose based on your deep analysis of goal scoring trends.
-`;
+Replace the example values with your actual analysis. home+away+draw must equal 100.`;
 
     const provider = getProviderName();
     const model = getModelName();
-    console.log(`[${provider}] Calling single-match API`, { model, matchId: match.id || match.eventId, home: match.homeTeamNameEn || match.homeTeamName, away: match.awayTeamNameEn || match.awayTeamName });
+    console.log(`[${provider}] Calling single-match API`, { model, matchId: match.id || match.eventId, home: matchDataInput.home.name, away: matchDataInput.away.name });
     const content = await generateText(prompt, {
-      systemInstruction: "你是一個專業足球分析師,專門分析入球大小和比賽結果。你不會看賠率去分析,會用最理智的方式,根據天氣、消耗曲線、傷停名單進行深入分析。你可以運用你的足球知識來分析球隊實力和狀態。Respond only with valid JSON.",
+      systemInstruction: "You are a professional football analyst. You must respond ONLY with a single valid JSON object. No markdown, no code blocks, no explanation. Just the raw JSON.",
       temperature: 0.2,
     });
-    console.log(`[${provider}] Single-match API response received`, { model, responseLength: content?.length ?? 0 });
+    console.log(`[${provider}] Raw response:`, content);
 
     const jsonStart = content.indexOf("{");
     const jsonEnd = content.lastIndexOf("}");
+    if (jsonStart === -1 || jsonEnd === -1) {
+      console.error("IaProbality: No JSON found in response");
+      return null;
+    }
     const jsonString = content.slice(jsonStart, jsonEnd + 1);
     const parsed = JSON.parse(jsonString);
+    console.log(`[${provider}] Parsed result:`, JSON.stringify(parsed));
 
     if (
       typeof parsed.home !== "number" ||
       typeof parsed.away !== "number" ||
       typeof parsed.draw !== "number"
     ) {
+      console.error("IaProbality: Missing home/away/draw numbers");
       return null;
+    }
+
+    const extractPick = (raw: any) => {
+      if (!raw || typeof raw.bestPick !== "string" || !raw.bestPick) return undefined;
+      return {
+        bestPick: raw.bestPick,
+        confidence: typeof raw.confidence === "number" ? Math.min(95, Math.max(50, raw.confidence)) : 65,
+      };
+    };
+
+    const picks = parsed.picks && typeof parsed.picks === "object" ? {
+      goals: extractPick(parsed.picks.goals),
+      had: extractPick(parsed.picks.had),
+      handicap: extractPick(parsed.picks.handicap),
+      corners: extractPick(parsed.picks.corners),
+    } : undefined;
+
+    const hasCompletePicks = picks?.goals && picks?.had && picks?.handicap && picks?.corners;
+    if (!hasCompletePicks) {
+      console.warn("IaProbality: picks incomplete:", JSON.stringify(picks));
     }
 
     const result: ResultIA = {
       home: parsed.home,
       away: parsed.away,
       draw: parsed.draw,
-      bestPick: typeof parsed.bestPick === "string" ? parsed.bestPick : undefined,
+      bestPick: picks?.goals?.bestPick ?? (typeof parsed.bestPick === "string" ? parsed.bestPick : undefined),
+      picks: hasCompletePicks ? picks as Required<typeof picks> : undefined,
     };
 
     return result;

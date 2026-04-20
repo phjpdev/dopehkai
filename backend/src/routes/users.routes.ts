@@ -15,5 +15,8 @@ usersRouter.post('/register', async (req, res) => {
 usersRouter.get('/verify/vip', async (req, res) => {
     await UsersController.verifyVIP(req, res);
 });
+usersRouter.get('/verify/vvip', async (req, res) => {
+    await UsersController.verifyVVIP(req, res);
+});
 
 export { usersRouter };

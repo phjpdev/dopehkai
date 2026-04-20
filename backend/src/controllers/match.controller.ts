@@ -1074,8 +1074,10 @@ class MatchController {
             }
             let matchData = matchSnap.data() as Match;
             if (matchData.predictions) {
-                // If match already has analysis, always return it so user sees the same result
-                if (matchData.ia && typeof matchData.ia.home === "number" && typeof matchData.ia.away === "number") {
+                // Return cached only when all 4 picks are present
+                const cachedPicks = matchData.ia?.picks;
+                const hasCompletePicks = cachedPicks?.goals?.bestPick && cachedPicks?.had?.bestPick && cachedPicks?.handicap?.bestPick && cachedPicks?.corners?.bestPick;
+                if (matchData.ia && typeof matchData.ia.home === "number" && typeof matchData.ia.away === "number" && hasCompletePicks) {
                     return res.json(matchData.ia);
                 }
                 const hkjcMatch = await ApiHKJCMatchById(id);
@@ -1108,6 +1110,7 @@ class MatchController {
                         away: Number(redistributedAway.toFixed(2)),
                         draw: resultIa.draw,
                         bestPick: resultIa.bestPick,
+                        picks: resultIa.picks,
                     };
                 } else {
                     matchData.ia = CalculationProbality(playersInjured, homeWinRate, awayWinRate, homeForm.split(","), awayForm.split(","));

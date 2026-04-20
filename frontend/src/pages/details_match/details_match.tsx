@@ -4,7 +4,6 @@ import { useProbability } from "../../hooks/useProbality";
 import { useMatchAnalysis } from "../../hooks/useMatchAnalysis";
 import { useNavigate, useParams } from "react-router-dom";
 import LastGameDetailsComponent from "./components/last_games_details";
-import DetailsCardComponent from "./components/details_card";
 import AppColors from "../../ultis/colors";
 import AppAssets from "../../ultis/assets";
 import ThemedText from "../../components/themedText";
@@ -19,6 +18,7 @@ import HeaderDetailsComponent from "./components/header_details";
 import { getTeamNameInCurrentLanguage } from "../../ultis/languageUtils";
 import LockedAnalysisCard from "./components/locked_analysis_card";
 import GlobeAnimation from "../../components/globe_animation";
+import PickCard, { LockedPickCard, formatPickLabel } from "./components/pick_card";
 
 
 function DetailsMatchPage() {
@@ -29,7 +29,10 @@ function DetailsMatchPage() {
     const { data: analysisMap } = useMatchAnalysis();
     const [loadingGenerate, setLoadingGenerate] = useState(false);
     const [hasGenerated, setHasGenerated] = useState(false);
+    const [generatingPicks, setGeneratingPicks] = useState(false);
+    const [picksAttempted, setPicksAttempted] = useState(false);
     const [isVip, setIsVip] = useState<boolean | null>(null);
+    const [isVvip, setIsVvip] = useState<boolean | null>(null);
     const navigate = useNavigate();
     const { userRole } = useAuthStore();
 
@@ -37,107 +40,106 @@ function DetailsMatchPage() {
         if (!userRole) {
             navigate("/");
         } else {
-            // Check VIP status
             API.GET(AppGlobal.baseURL + "user/verify/vip")
-                .then((res) => {
-                    setIsVip(res.status === 200);
-                })
-                .catch(() => {
-                    setIsVip(false);
-                });
+                .then((res) => { setIsVip(res.status === 200); })
+                .catch(() => { setIsVip(false); });
+            API.GET(AppGlobal.baseURL + "user/verify/vvip")
+                .then((res) => { setIsVvip(res.status === 200); })
+                .catch(() => { setIsVvip(false); });
         }
     }, [userRole, navigate]);
 
-    // Automatically generate analysis when data loads and doesn't have ia
+    // Auto-generate ia when missing
     useEffect(() => {
-        if (!data || hasGenerated || loadingGenerate || !id) return;
-        
-        // If analysis doesn't exist, try to generate it
-        if (!data.ia) {
-            // If predictions don't exist, first fetch match details with refresh to get predictions
-            if (!data.predictions) {
-                setLoadingGenerate(true);
-                setHasGenerated(true);
-                // Fetch match details with refresh to get predictions and other missing data
-                API.GET(AppGlobal.baseURL + "match/match-data/" + id + "?refresh=true")
-                    .then((refreshRes) => {
-                        if (refreshRes.status === 200 && refreshRes.data) {
-                            // Update query data with refreshed data
-                            queryClient.setQueryData(['probability', id], refreshRes.data);
-                            // If we now have predictions but no analysis, generate analysis
-                            if (refreshRes.data.predictions && !refreshRes.data.ia) {
-                                return API.GET(AppGlobal.baseURL + "match/match-analyze/" + id)
-                                    .then((analyzeRes) => {
-                                        if (analyzeRes.status === 200 && analyzeRes.data) {
-                                            // Update the query data with the new analysis
-                                            queryClient.setQueryData(['probability', id], (oldData: Probability) => {
-                                                if (!oldData) return oldData;
-                                                return {
-                                                    ...oldData,
-                                                    ia: analyzeRes.data
-                                                };
-                                            });
-                                        }
-                                    });
-                            }
+        if (!data || hasGenerated || loadingGenerate || !id || data.ia) return;
+
+        if (!data.predictions) {
+            setLoadingGenerate(true);
+            setHasGenerated(true);
+            API.GET(AppGlobal.baseURL + "match/match-data/" + id + "?refresh=true")
+                .then((refreshRes) => {
+                    if (refreshRes.status === 200 && refreshRes.data) {
+                        queryClient.setQueryData(['probability', id], refreshRes.data);
+                        if (refreshRes.data.predictions && !refreshRes.data.ia) {
+                            return API.GET(AppGlobal.baseURL + "match/match-analyze/" + id)
+                                .then((analyzeRes) => {
+                                    if (analyzeRes.status === 200 && analyzeRes.data) {
+                                        queryClient.setQueryData(['probability', id], (oldData: Probability) => {
+                                            if (!oldData) return oldData;
+                                            return { ...oldData, ia: analyzeRes.data };
+                                        });
+                                    }
+                                });
                         }
-                    })
-                    .catch((err) => {
-                        console.error('Error fetching/analyzing match:', err);
-                        setHasGenerated(false); // Allow retry on error
-                    })
-                    .finally(() => {
-                        setLoadingGenerate(false);
-                    });
-            } else if (data.predictions) {
-                // Predictions exist, just generate analysis
-                setHasGenerated(true);
-                setLoadingGenerate(true);
-                API.GET(AppGlobal.baseURL + "match/match-analyze/" + id)
-                    .then((res) => {
-                        if (res.status === 200 && res.data) {
-                            // Update the query data with the new analysis - this will trigger a re-render
-                            queryClient.setQueryData(['probability', id], (oldData: Probability) => {
-                                if (!oldData) return oldData;
-                                return {
-                                    ...oldData,
-                                    ia: res.data
-                                };
-                            });
-                        }
-                    })
-                    .catch((err) => {
-                        console.error('Error generating analysis:', err);
-                        setHasGenerated(false); // Allow retry on error
-                    })
-                    .finally(() => {
-                        setLoadingGenerate(false);
-                    });
-            }
+                    }
+                })
+                .catch(() => { setHasGenerated(false); })
+                .finally(() => { setLoadingGenerate(false); });
+        } else {
+            setHasGenerated(true);
+            setLoadingGenerate(true);
+            API.GET(AppGlobal.baseURL + "match/match-analyze/" + id)
+                .then((res) => {
+                    if (res.status === 200 && res.data) {
+                        queryClient.setQueryData(['probability', id], (oldData: Probability) => {
+                            if (!oldData) return oldData;
+                            return { ...oldData, ia: res.data };
+                        });
+                    }
+                })
+                .catch(() => { setHasGenerated(false); })
+                .finally(() => { setLoadingGenerate(false); });
         }
     }, [data, hasGenerated, loadingGenerate, id, queryClient]);
+
+    // Auto-fetch picks when ia exists but picks are missing or incomplete
+    useEffect(() => {
+        if (!data?.ia || picksAttempted || generatingPicks || !id) return;
+        const p = data.ia.picks;
+        if (p?.goals?.bestPick && p?.had?.bestPick && p?.handicap?.bestPick && p?.corners?.bestPick) return;
+
+        setPicksAttempted(true);
+        setGeneratingPicks(true);
+        API.GET(AppGlobal.baseURL + "match/match-analyze/" + id)
+            .then((res) => {
+                if (res.status === 200 && res.data) {
+                    queryClient.setQueryData(['probability', id], (oldData: Probability) => {
+                        if (!oldData) return oldData;
+                        return { ...oldData, ia: res.data };
+                    });
+                }
+            })
+            .catch((err) => {
+                console.error('Error fetching picks:', err);
+            })
+            .finally(() => { setGeneratingPicks(false); });
+    }, [data, picksAttempted, generatingPicks, id, queryClient]);
 
     async function generateIA() {
         if (loadingGenerate || hasGenerated || !id) return;
         setLoadingGenerate(true);
         setHasGenerated(true);
-        const res = await API.GET(
-            AppGlobal.baseURL + "match/match-analyze/" + id);
+        setPicksAttempted(false);
+        const res = await API.GET(AppGlobal.baseURL + "match/match-analyze/" + id);
         if (res.status === 200 && res.data) {
             queryClient.setQueryData(['probability', id], (oldData: Probability) => ({
                 ...oldData,
                 ia: res.data
             }));
-            // Invalidate query to refetch
             queryClient.invalidateQueries({ queryKey: ['probability', id] });
-        };
+        }
         setLoadingGenerate(false);
     }
 
-    // Use list analysis (batch) when available so crowns and % match the match list
+    // Use list analysis (batch) for home/away % (matches match list), but preserve picks from individual match
     const displayData: Probability | undefined =
         data && id
-            ? { ...data, ia: (analysisMap && analysisMap[id]) ? analysisMap[id] : data.ia }
+            ? {
+                ...data,
+                ia: analysisMap && analysisMap[id]
+                    ? { ...analysisMap[id], picks: data.ia?.picks }
+                    : data.ia
+            }
             : data;
 
     return (
@@ -184,7 +186,7 @@ function DetailsMatchPage() {
                     <div className="mt-24" >
                         {displayData && <HeaderDetailsComponent data={displayData} showAnalysisLabel={isVip === true} />}
 
-                        {/* Show locked cards for non-VIP users */}
+                        {/* Non-VIP: show all 4 pick types as locked */}
                         {isVip === false && (
                             <>
                                 <LockedAnalysisCard kickOff={data.kickOff} />
@@ -193,78 +195,87 @@ function DetailsMatchPage() {
                             </>
                         )}
 
-                        {!displayData?.ia && loadingGenerate ?
-                            <div style={{ marginTop: 30 }}>
-
-                                <div style={{
-                                    flexDirection: "row",
-                                    display: "flex",
-                                    width: "100%",
-                                    marginTop: 10,
-                                    marginBottom: 50,
-                                    alignItems: "center",
-                                    justifyContent: "center"
-                                }}>
-                                    <div style={{ width: "20%", height: 2, backgroundColor: AppColors.primary }} />
-
-                                    <div
-                                        style={{
-                                            width: 70, height: 70, backgroundColor: AppColors.primary, borderRadius: 20, justifyContent: "center", display: "flex", marginLeft: 40, marginRight: 40,
-                                            alignItems: "center", justifyItems: "center"
-                                        }}>
-                                        <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
-                                    </div>
-
-                                    <div style={{ width: "20%", height: 2, backgroundColor: AppColors.primary }} />
-                                </div>
-                            </div>
-                        : !displayData?.ia ?
-                            <div style={{ marginTop: 30, cursor: "pointer" }}
-                                onClick={generateIA}      >
-
-                                <div className="flex items-center justify-center" >
-                                    <div className="bg-white rounded-lg p-2 mt-2 flex-row flex items-center justify-center">
-                                        <ThemedText
-                                            className="font-bold text-[12px] sm:text-[16px] leading-tight"
-                                            type="defaultSemiBold"
-                                            style={{
-                                                color: AppColors.background,
-                                            }}
-                                        >
-                                            {t('generateStats')}
-                                        </ThemedText>
+                        {/* VIP or VVIP: show analysis cards */}
+                        {isVip === true && (
+                            !displayData?.ia && loadingGenerate ? (
+                                <div style={{ marginTop: 30 }}>
+                                    <div style={{ flexDirection: "row", display: "flex", width: "100%", marginTop: 10, marginBottom: 50, alignItems: "center", justifyContent: "center" }}>
+                                        <div style={{ width: "20%", height: 2, backgroundColor: AppColors.primary }} />
+                                        <div style={{ width: 70, height: 70, backgroundColor: AppColors.primary, borderRadius: 20, justifyContent: "center", display: "flex", marginLeft: 40, marginRight: 40, alignItems: "center" }}>
+                                            <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        </div>
+                                        <div style={{ width: "20%", height: 2, backgroundColor: AppColors.primary }} />
                                     </div>
                                 </div>
-
-
-                                <div style={{
-                                    flexDirection: "row",
-                                    display: "flex",
-                                    width: "100%",
-                                    marginTop: 10,
-                                    marginBottom: 50,
-                                    alignItems: "center",
-                                    justifyContent: "center"
-                                }}>
-                                    <div style={{ width: "20%", height: 2, backgroundColor: AppColors.primary }} />
-
-                                    <div
-                                        style={{
-                                            width: 70, height: 70, backgroundColor: AppColors.primary, borderRadius: 20, justifyContent: "center", display: "flex", marginLeft: 40, marginRight: 40,
-                                            alignItems: "center", justifyItems: "center"
-                                        }}>
-                                        <img
-                                            src={AppAssets.ia}
-                                            className="w-8"
-                                            style={{ filter: "brightness(0) invert(1)" }} />
+                            ) : !displayData?.ia ? (
+                                <div style={{ marginTop: 30, cursor: "pointer" }} onClick={generateIA}>
+                                    <div className="flex items-center justify-center">
+                                        <div className="bg-white rounded-lg p-2 mt-2 flex-row flex items-center justify-center">
+                                            <ThemedText className="font-bold text-[12px] sm:text-[16px] leading-tight" type="defaultSemiBold" style={{ color: AppColors.background }}>
+                                                {t('generateStats')}
+                                            </ThemedText>
+                                        </div>
                                     </div>
-
-                                    <div style={{ width: "20%", height: 2, backgroundColor: AppColors.primary }} />
+                                    <div style={{ flexDirection: "row", display: "flex", width: "100%", marginTop: 10, marginBottom: 50, alignItems: "center", justifyContent: "center" }}>
+                                        <div style={{ width: "20%", height: 2, backgroundColor: AppColors.primary }} />
+                                        <div style={{ width: 70, height: 70, backgroundColor: AppColors.primary, borderRadius: 20, justifyContent: "center", display: "flex", marginLeft: 40, marginRight: 40, alignItems: "center" }}>
+                                            <img src={AppAssets.ia} className="w-8" style={{ filter: "brightness(0) invert(1)" }} />
+                                        </div>
+                                        <div style={{ width: "20%", height: 2, backgroundColor: AppColors.primary }} />
+                                    </div>
                                 </div>
-                            </div> : (data.predictions || displayData?.ia) && isVip === true ?
-                                <DetailsCardComponent probability={displayData!} />
-                                : <div />
-                        }
+                            ) : (
+                                <>
+                                    {/* 入球大細 — VIP and VVIP */}
+                                    <PickCard
+                                        typeLine1="入球"
+                                        typeLine2="大細"
+                                        bestPick={formatPickLabel("goals", displayData.ia?.picks?.goals?.bestPick ?? "—")}
+                                        confidence={displayData.ia?.picks?.goals?.confidence ?? 0}
+                                        loading={generatingPicks && !displayData.ia?.picks?.goals?.bestPick}
+                                    />
+
+                                    {/* 主客和 — VVIP only */}
+                                    {isVvip === true ? (
+                                        <PickCard
+                                            typeLine1="主客"
+                                            typeLine2="和"
+                                            bestPick={formatPickLabel("had", displayData.ia?.picks?.had?.bestPick ?? "—")}
+                                            confidence={displayData.ia?.picks?.had?.confidence ?? 0}
+                                            loading={generatingPicks && !displayData.ia?.picks?.had?.bestPick}
+                                        />
+                                    ) : (
+                                        <LockedPickCard typeLine1="主客" typeLine2="和" />
+                                    )}
+
+                                    {/* 讓球 — VVIP only */}
+                                    {isVvip === true ? (
+                                        <PickCard
+                                            typeLine1="讓"
+                                            typeLine2="球"
+                                            bestPick={formatPickLabel("handicap", displayData.ia?.picks?.handicap?.bestPick ?? "—")}
+                                            confidence={displayData.ia?.picks?.handicap?.confidence ?? 0}
+                                            loading={generatingPicks && !displayData.ia?.picks?.handicap?.bestPick}
+                                        />
+                                    ) : (
+                                        <LockedPickCard typeLine1="讓" typeLine2="球" />
+                                    )}
+
+                                    {/* 角球大細 — VVIP only */}
+                                    {isVvip === true ? (
+                                        <PickCard
+                                            typeLine1="角球"
+                                            typeLine2="大細"
+                                            bestPick={formatPickLabel("corners", displayData.ia?.picks?.corners?.bestPick ?? "—")}
+                                            confidence={displayData.ia?.picks?.corners?.confidence ?? 0}
+                                            loading={generatingPicks && !displayData.ia?.picks?.corners?.bestPick}
+                                        />
+                                    ) : (
+                                        <LockedPickCard typeLine1="角球" typeLine2="大細" />
+                                    )}
+                                </>
+                            )
+                        )}
 
                         {
                             //  <DetailsInfoComponent probability={data} />

@@ -42,12 +42,23 @@ export interface Probability {
   hilMainLine?: string
 }
 
+export interface PickResult {
+  bestPick: string;
+  confidence: number;
+}
+
 export interface ResultIA {
   draw: number;
   home: number;
   away: number;
-  /** Optional AI recommendation tag from Gemini, e.g. 'HOME', 'HANDICAP_HOME', 'OVER_2.5'. */
+  /** Backward-compat goals pick, e.g. 'OVER_2.5'. */
   bestPick?: string;
+  picks?: {
+    goals?: PickResult;    // 入球大細
+    had?: PickResult;      // 主客和
+    handicap?: PickResult; // 讓球
+    corners?: PickResult;  // 角球大細
+  };
 }
 
 export interface Predictions {
