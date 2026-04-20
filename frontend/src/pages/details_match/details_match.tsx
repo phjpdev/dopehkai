@@ -16,10 +16,15 @@ import { useTranslation } from "react-i18next";
 import useAuthStore from "../../store/userAuthStore";
 import HeaderDetailsComponent from "./components/header_details";
 import { getTeamNameInCurrentLanguage } from "../../ultis/languageUtils";
-import LockedAnalysisCard from "./components/locked_analysis_card";
 import GlobeAnimation from "../../components/globe_animation";
-import PickCard, { LockedPickCard, formatPickLabel } from "./components/pick_card";
+import PickCard, { formatPickLabel } from "./components/pick_card";
+import DetailsCardComponent from "./components/details_card";
 
+function pickConfidence(p: { confidence: number } | undefined, rawCode: string | undefined): number {
+    if (typeof p?.confidence === "number" && p.confidence > 0) return p.confidence;
+    if (rawCode && rawCode !== "—") return 70;
+    return 0;
+}
 
 function DetailsMatchPage() {
     const { t } = useTranslation();
@@ -35,6 +40,15 @@ function DetailsMatchPage() {
     const [isVvip, setIsVvip] = useState<boolean | null>(null);
     const navigate = useNavigate();
     const { userRole } = useAuthStore();
+
+    const isStaff = userRole === "admin" || userRole === "subadmin";
+    /** VIP status known; if user is VIP, VVIP check must finish too before rendering pick rows */
+    const accessResolved =
+        isStaff ||
+        isVip === false ||
+        (isVip === true && isVvip !== null);
+    const canSeeVipPicks = isStaff || isVip === true;
+    const canSeeAllFourPicks = isStaff || isVvip === true;
 
     useEffect(() => {
         if (!userRole) {
@@ -131,16 +145,26 @@ function DetailsMatchPage() {
         setLoadingGenerate(false);
     }
 
-    // Use list analysis (batch) for home/away % (matches match list), but preserve picks from individual match
+    // List batch analysis supplies home/away %; keep full `ia` from match detail (especially `picks`) so it is never overwritten by the slim analysis map.
     const displayData: Probability | undefined =
         data && id
             ? {
                 ...data,
-                ia: analysisMap && analysisMap[id]
-                    ? { ...analysisMap[id], picks: data.ia?.picks }
-                    : data.ia
+                ia:
+                    analysisMap && analysisMap[id] && data.ia
+                        ? {
+                            ...data.ia,
+                            home: analysisMap[id].home,
+                            away: analysisMap[id].away,
+                            draw: analysisMap[id].draw ?? data.ia.draw,
+                            bestPick: data.ia.bestPick ?? analysisMap[id].bestPick,
+                        }
+                        : data.ia,
             }
             : data;
+
+    const iaP = displayData?.ia;
+    const goalsRaw = iaP?.picks?.goals?.bestPick ?? iaP?.bestPick;
 
     return (
         error ?
@@ -184,19 +208,27 @@ function DetailsMatchPage() {
 
                     <AppBarComponent />
                     <div className="mt-24" >
-                        {displayData && <HeaderDetailsComponent data={displayData} showAnalysisLabel={isVip === true} />}
-
-                        {/* Non-VIP: show all 4 pick types as locked */}
-                        {isVip === false && (
-                            <>
-                                <LockedAnalysisCard kickOff={data.kickOff} />
-                                <LockedAnalysisCard kickOff={data.kickOff} />
-                                <LockedAnalysisCard kickOff={data.kickOff} />
-                            </>
+                        {displayData && (
+                            <HeaderDetailsComponent
+                                data={displayData}
+                                showAnalysisLabel={accessResolved && canSeeVipPicks}
+                            />
                         )}
 
-                        {/* VIP or VVIP: show analysis cards */}
-                        {isVip === true && (
+                        {!accessResolved && (
+                            <div style={{ marginTop: 30 }}>
+                                <div style={{ flexDirection: "row", display: "flex", width: "100%", marginTop: 10, marginBottom: 30, alignItems: "center", justifyContent: "center" }}>
+                                    <div style={{ width: "20%", height: 2, backgroundColor: AppColors.primary }} />
+                                    <div style={{ width: 70, height: 70, backgroundColor: AppColors.primary, borderRadius: 20, justifyContent: "center", display: "flex", marginLeft: 40, marginRight: 40, alignItems: "center" }}>
+                                        <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    </div>
+                                    <div style={{ width: "20%", height: 2, backgroundColor: AppColors.primary }} />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* VIP / VVIP / staff: analysis + picks; normal: no pick strip */}
+                        {accessResolved && canSeeVipPicks && (
                             !displayData?.ia && loadingGenerate ? (
                                 <div style={{ marginTop: 30 }}>
                                     <div style={{ flexDirection: "row", display: "flex", width: "100%", marginTop: 10, marginBottom: 50, alignItems: "center", justifyContent: "center" }}>
@@ -226,60 +258,46 @@ function DetailsMatchPage() {
                                 </div>
                             ) : (
                                 <>
-                                    {/* 入球大細 — VIP and VVIP */}
+                                    {/* 入球大細 — VIP, VVIP, staff */}
                                     <PickCard
                                         typeLine1="入球"
                                         typeLine2="大細"
-                                        bestPick={formatPickLabel("goals", displayData.ia?.picks?.goals?.bestPick ?? "—")}
-                                        confidence={displayData.ia?.picks?.goals?.confidence ?? 0}
-                                        loading={generatingPicks && !displayData.ia?.picks?.goals?.bestPick}
+                                        bestPick={formatPickLabel("goals", goalsRaw ?? "—")}
+                                        confidence={pickConfidence(displayData.ia?.picks?.goals, goalsRaw)}
+                                        loading={generatingPicks && !goalsRaw}
                                     />
 
-                                    {/* 主客和 — VVIP only */}
-                                    {isVvip === true ? (
-                                        <PickCard
-                                            typeLine1="主客"
-                                            typeLine2="和"
-                                            bestPick={formatPickLabel("had", displayData.ia?.picks?.had?.bestPick ?? "—")}
-                                            confidence={displayData.ia?.picks?.had?.confidence ?? 0}
-                                            loading={generatingPicks && !displayData.ia?.picks?.had?.bestPick}
-                                        />
-                                    ) : (
-                                        <LockedPickCard typeLine1="主客" typeLine2="和" />
-                                    )}
-
-                                    {/* 讓球 — VVIP only */}
-                                    {isVvip === true ? (
-                                        <PickCard
-                                            typeLine1="讓"
-                                            typeLine2="球"
-                                            bestPick={formatPickLabel("handicap", displayData.ia?.picks?.handicap?.bestPick ?? "—")}
-                                            confidence={displayData.ia?.picks?.handicap?.confidence ?? 0}
-                                            loading={generatingPicks && !displayData.ia?.picks?.handicap?.bestPick}
-                                        />
-                                    ) : (
-                                        <LockedPickCard typeLine1="讓" typeLine2="球" />
-                                    )}
-
-                                    {/* 角球大細 — VVIP only */}
-                                    {isVvip === true ? (
-                                        <PickCard
-                                            typeLine1="角球"
-                                            typeLine2="大細"
-                                            bestPick={formatPickLabel("corners", displayData.ia?.picks?.corners?.bestPick ?? "—")}
-                                            confidence={displayData.ia?.picks?.corners?.confidence ?? 0}
-                                            loading={generatingPicks && !displayData.ia?.picks?.corners?.bestPick}
-                                        />
-                                    ) : (
-                                        <LockedPickCard typeLine1="角球" typeLine2="大細" />
+                                    {/* 主客和、讓球、角球大細 — VVIP + staff only */}
+                                    {canSeeAllFourPicks && (
+                                        <>
+                                            <PickCard
+                                                typeLine1="主客"
+                                                typeLine2="和"
+                                                bestPick={formatPickLabel("had", displayData.ia?.picks?.had?.bestPick ?? "—")}
+                                                confidence={pickConfidence(displayData.ia?.picks?.had, displayData.ia?.picks?.had?.bestPick)}
+                                                loading={generatingPicks && !displayData.ia?.picks?.had?.bestPick}
+                                            />
+                                            <PickCard
+                                                typeLine1="讓"
+                                                typeLine2="球"
+                                                bestPick={formatPickLabel("handicap", displayData.ia?.picks?.handicap?.bestPick ?? "—")}
+                                                confidence={pickConfidence(displayData.ia?.picks?.handicap, displayData.ia?.picks?.handicap?.bestPick)}
+                                                loading={generatingPicks && !displayData.ia?.picks?.handicap?.bestPick}
+                                            />
+                                            <PickCard
+                                                typeLine1="角球"
+                                                typeLine2="大細"
+                                                bestPick={formatPickLabel("corners", displayData.ia?.picks?.corners?.bestPick ?? "—")}
+                                                confidence={pickConfidence(displayData.ia?.picks?.corners, displayData.ia?.picks?.corners?.bestPick)}
+                                                loading={generatingPicks && !displayData.ia?.picks?.corners?.bestPick}
+                                            />
+                                        </>
                                     )}
                                 </>
                             )
                         )}
 
-                        {
-                            //  <DetailsInfoComponent probability={data} />
-                        }
+                        {displayData && <DetailsCardComponent probability={displayData} />}
 
                         {/* HKJC-only matches have no lastGames – show limited message instead of crashing */}
                         {data.lastGames?.homeTeam && data.lastGames?.awayTeam ? (

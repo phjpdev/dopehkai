@@ -3,7 +3,7 @@ import { Request, Response } from "express";
 import { Daum, FootyLogic } from "model/footylogic.model";
 import { FootyLogicDetails } from "model/footylogic_details.model";
 import { AwayTeam, HomeTeam, RecentMatch } from "model/footylogic_last_games";
-import { Match } from "model/match.model";
+import { Match, Predictions as MatchPredictions } from "model/match.model";
 import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, writeBatch } from '../database/db'
 import { db } from "../firebase/firebase";
 import Global from "../ultis/global.ultis";
@@ -861,7 +861,9 @@ class MatchController {
                                     const ia = {
                                         home: Number(redistributedHome.toFixed(2)),
                                         away: Number(redistributedAway.toFixed(2)),
-                                        draw: resultIa.draw
+                                        draw: resultIa.draw,
+                                        bestPick: resultIa.bestPick,
+                                        picks: resultIa.picks,
                                     };
                                     const matchRef = doc(db, Tables.matches, id);
                                     setDoc(matchRef, { ia }, { merge: true }).then(() => {
@@ -1073,58 +1075,107 @@ class MatchController {
                 return res.status(404).json({ error: 'Match not found' });
             }
             let matchData = matchSnap.data() as Match;
-            if (matchData.predictions) {
-                // Return cached only when all 4 picks are present
-                const cachedPicks = matchData.ia?.picks;
-                const hasCompletePicks = cachedPicks?.goals?.bestPick && cachedPicks?.had?.bestPick && cachedPicks?.handicap?.bestPick && cachedPicks?.corners?.bestPick;
-                if (matchData.ia && typeof matchData.ia.home === "number" && typeof matchData.ia.away === "number" && hasCompletePicks) {
-                    return res.json(matchData.ia);
-                }
-                const hkjcMatch = await ApiHKJCMatchById(id);
-                if (hkjcMatch) {
-                    const markets = extractHKJCMarkets(hkjcMatch);
-                    if (markets.hadHomePct != null) matchData.hadHomePct = markets.hadHomePct;
-                    if (markets.hadDrawPct != null) matchData.hadDrawPct = markets.hadDrawPct;
-                    if (markets.hadAwayPct != null) matchData.hadAwayPct = markets.hadAwayPct;
-                    if (markets.condition) matchData.condition = markets.condition;
-                    if (markets.hiloLines?.length) matchData.hiloLines = markets.hiloLines;
-                    if (markets.hilMainLine) matchData.hilMainLine = markets.hilMainLine;
-                }
-                let homeWinRate = matchData.predictions.homeWinRate;
-                let awayWinRate = matchData.predictions.awayWinRate;
-                let homeForm = matchData.homeForm;
-                let awayForm = matchData.awayForm;
-                let playersInjured = { home: [], away: [] };
-                if (matchData.fixture_id && matchData.league_id && matchData.homeTeamId && matchData.awayTeamId) {
-                    playersInjured = await ApiTopScoreInjured(matchData.fixture_id, matchData.league_id, matchData.kickOff.split("-")[0], matchData.homeTeamId, matchData.awayTeamId);
-                }
-                const resultIa = await IaProbality(matchData, playersInjured);
-                if (resultIa) {
-                    const total = resultIa.home + resultIa.away;
-                    const homeShare = total > 0 ? resultIa.home / total : 0.5;
-                    const awayShare = total > 0 ? resultIa.away / total : 0.5;
-                    const redistributedHome = resultIa.home + resultIa.draw * homeShare;
-                    const redistributedAway = resultIa.away + resultIa.draw * awayShare;
-                    matchData.ia = {
-                        home: Number(redistributedHome.toFixed(2)),
-                        away: Number(redistributedAway.toFixed(2)),
-                        draw: resultIa.draw,
-                        bestPick: resultIa.bestPick,
-                        picks: resultIa.picks,
-                    };
-                } else {
-                    matchData.ia = CalculationProbality(playersInjured, homeWinRate, awayWinRate, homeForm.split(","), awayForm.split(","));
-                }
-                await setDoc(matchRef, matchData, { merge: true });
-                await cacheDel(CacheKeys.matchDetail(id));
-                await cacheDel(CacheKeys.matchesList(false));
-                await cacheDel(CacheKeys.matchesList(true));
-                const analysisRef = doc(db, Tables.analysis, id);
-                await setDoc(analysisRef, { matchId: id, ...matchData.ia }, { merge: true });
+            if (!matchData.homeForm) matchData.homeForm = "";
+            if (!matchData.awayForm) matchData.awayForm = "";
+
+            // Return cached only when all 4 picks are present
+            const cachedPicks = matchData.ia?.picks;
+            const hasCompletePicks = cachedPicks?.goals?.bestPick && cachedPicks?.had?.bestPick && cachedPicks?.handicap?.bestPick && cachedPicks?.corners?.bestPick;
+            if (matchData.ia && typeof matchData.ia.home === "number" && typeof matchData.ia.away === "number" && hasCompletePicks) {
                 return res.json(matchData.ia);
             }
 
-            return res.status(404).json({ error: 'predictions not found' });
+            // HKJC enrichment so HK-only fixtures still get 1X2 / HIL / handicap context for Gemini
+            const hkjcMatch = await ApiHKJCMatchById(id);
+            if (hkjcMatch) {
+                const markets = extractHKJCMarkets(hkjcMatch);
+                if (markets.hadHomePct != null) matchData.hadHomePct = markets.hadHomePct;
+                if (markets.hadDrawPct != null) matchData.hadDrawPct = markets.hadDrawPct;
+                if (markets.hadAwayPct != null) matchData.hadAwayPct = markets.hadAwayPct;
+                if (markets.condition) matchData.condition = markets.condition;
+                if (markets.hiloLines?.length) matchData.hiloLines = markets.hiloLines;
+                if (markets.hilMainLine) matchData.hilMainLine = markets.hilMainLine;
+            }
+
+            const parseImpliedPct = (v: string | number | undefined | null): number | null => {
+                if (v == null || v === "") return null;
+                const n = typeof v === "number" ? v : parseFloat(String(v).replace(/[^\d.-]/g, ""));
+                return Number.isFinite(n) ? n : null;
+            };
+
+            let homeWinRate: number | null = null;
+            let awayWinRate: number | null = null;
+
+            if (matchData.predictions?.homeWinRate != null && matchData.predictions?.awayWinRate != null) {
+                homeWinRate = matchData.predictions.homeWinRate;
+                awayWinRate = matchData.predictions.awayWinRate;
+            } else {
+                const hImplied = parseImpliedPct(matchData.hadHomePct);
+                const aImplied = parseImpliedPct(matchData.hadAwayPct);
+                if (hImplied != null && aImplied != null) {
+                    homeWinRate = hImplied;
+                    awayWinRate = aImplied;
+                    const sum2 = homeWinRate + awayWinRate;
+                    if (sum2 > 0 && Math.abs(sum2 - 100) > 0.5) {
+                        homeWinRate = (homeWinRate / sum2) * 100;
+                        awayWinRate = (awayWinRate / sum2) * 100;
+                    }
+                } else if (typeof matchData.ia?.home === "number" && typeof matchData.ia?.away === "number") {
+                    homeWinRate = matchData.ia.home;
+                    awayWinRate = matchData.ia.away;
+                }
+            }
+
+            if (homeWinRate == null || awayWinRate == null) {
+                return res.status(404).json({
+                    error: "predictions not found",
+                    message: "No ML predictions, HKJC 1X2 implied %, or stored IA win rates for this match.",
+                });
+            }
+
+            if (!matchData.predictions) {
+                const synthetic: MatchPredictions = {
+                    homeWinRate,
+                    awayWinRate,
+                    overRound: 0,
+                    evHome: 0,
+                    evAway: 0,
+                    pbrHome: 0,
+                    pbrAway: 0,
+                    kellyHome: 0,
+                    kellyAway: 0,
+                };
+                matchData.predictions = synthetic;
+            }
+
+            let playersInjured = { home: [] as any[], away: [] as any[] };
+            if (matchData.fixture_id && matchData.league_id && matchData.homeTeamId && matchData.awayTeamId && matchData.kickOff) {
+                playersInjured = await ApiTopScoreInjured(matchData.fixture_id, matchData.league_id, matchData.kickOff.split("-")[0], matchData.homeTeamId, matchData.awayTeamId);
+            }
+            const resultIa = await IaProbality(matchData, playersInjured);
+            if (resultIa) {
+                const total = resultIa.home + resultIa.away;
+                const homeShare = total > 0 ? resultIa.home / total : 0.5;
+                const awayShare = total > 0 ? resultIa.away / total : 0.5;
+                const redistributedHome = resultIa.home + resultIa.draw * homeShare;
+                const redistributedAway = resultIa.away + resultIa.draw * awayShare;
+                matchData.ia = {
+                    home: Number(redistributedHome.toFixed(2)),
+                    away: Number(redistributedAway.toFixed(2)),
+                    draw: resultIa.draw,
+                    bestPick: resultIa.bestPick,
+                    picks: resultIa.picks,
+                };
+            } else {
+                matchData.ia = CalculationProbality(playersInjured, homeWinRate, awayWinRate, matchData.homeForm.split(","), matchData.awayForm.split(","));
+            }
+            await setDoc(matchRef, matchData, { merge: true });
+            await cacheDel(CacheKeys.matchDetail(id));
+            await cacheDel(CacheKeys.matchesList(false));
+            await cacheDel(CacheKeys.matchesList(true));
+            const analysisRef = doc(db, Tables.analysis, id);
+            await setDoc(analysisRef, { matchId: id, ...matchData.ia }, { merge: true });
+            return res.json(matchData.ia);
 
         } catch (error: any) {
             console.error('Error analyzing match:', error.response?.data || error.message);

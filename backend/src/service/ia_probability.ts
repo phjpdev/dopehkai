@@ -3,11 +3,13 @@ import { generateText, getModelName, getProviderName } from "./aiProvider";
 
 export async function IaProbality(match: Match, playersInjured: any): Promise<ResultIA | null> {
   try {
+    const homeFormArr = (match.homeForm ?? "").split(",").filter(Boolean);
+    const awayFormArr = (match.awayForm ?? "").split(",").filter(Boolean);
     const matchDataInput = {
       data: match.kickOff.split(" ")[0],
       home: {
         name: match.homeTeamNameEn || match.homeTeamName,
-        last5Matches: match.homeForm.split(",").slice(0, 5),
+        last5Matches: homeFormArr.slice(0, 5),
         averageGoals: match.lastGames
           ? Number(match.lastGames.homeTeam.teamGoalsFor) / Number(match.lastGames.homeTeam.teamPlayed)
           : null,
@@ -17,7 +19,7 @@ export async function IaProbality(match: Match, playersInjured: any): Promise<Re
       },
       away: {
         name: match.awayTeamNameEn || match.awayTeamName,
-        last5Matches: match.awayForm.split(",").slice(0, 5),
+        last5Matches: awayFormArr.slice(0, 5),
         averageGoals: match.lastGames
           ? Number(match.lastGames.awayTeam.teamGoalsFor) / Number(match.lastGames.awayTeam.teamPlayed)
           : null,
@@ -110,24 +112,41 @@ Replace the example values with your actual analysis. home+away+draw must equal 
       };
     };
 
-    const picks = parsed.picks && typeof parsed.picks === "object" ? {
-      goals: extractPick(parsed.picks.goals),
-      had: extractPick(parsed.picks.had),
-      handicap: extractPick(parsed.picks.handicap),
-      corners: extractPick(parsed.picks.corners),
-    } : undefined;
+    const picksRaw =
+      parsed.picks && typeof parsed.picks === "object"
+        ? {
+            goals: extractPick(parsed.picks.goals),
+            had: extractPick(parsed.picks.had),
+            handicap: extractPick(parsed.picks.handicap),
+            corners: extractPick(parsed.picks.corners),
+          }
+        : undefined;
 
-    const hasCompletePicks = picks?.goals && picks?.had && picks?.handicap && picks?.corners;
-    if (!hasCompletePicks) {
-      console.warn("IaProbality: picks incomplete:", JSON.stringify(picks));
+    const hasCompletePicks =
+      picksRaw?.goals && picksRaw?.had && picksRaw?.handicap && picksRaw?.corners;
+    const hasAnyPick =
+      !!picksRaw &&
+      !!(picksRaw.goals || picksRaw.had || picksRaw.handicap || picksRaw.corners);
+
+    if (picksRaw && !hasCompletePicks) {
+      console.warn("IaProbality: picks incomplete:", JSON.stringify(picksRaw));
+    }
+
+    let picksPartial: ResultIA["picks"] | undefined;
+    if (picksRaw && hasAnyPick) {
+      picksPartial = {};
+      if (picksRaw.goals) picksPartial.goals = picksRaw.goals;
+      if (picksRaw.had) picksPartial.had = picksRaw.had;
+      if (picksRaw.handicap) picksPartial.handicap = picksRaw.handicap;
+      if (picksRaw.corners) picksPartial.corners = picksRaw.corners;
     }
 
     const result: ResultIA = {
       home: parsed.home,
       away: parsed.away,
       draw: parsed.draw,
-      bestPick: picks?.goals?.bestPick ?? (typeof parsed.bestPick === "string" ? parsed.bestPick : undefined),
-      picks: hasCompletePicks ? picks as Required<typeof picks> : undefined,
+      bestPick: picksRaw?.goals?.bestPick ?? (typeof parsed.bestPick === "string" ? parsed.bestPick : undefined),
+      picks: picksPartial,
     };
 
     return result;

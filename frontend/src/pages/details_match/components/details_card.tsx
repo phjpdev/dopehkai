@@ -88,7 +88,7 @@ function DetailsCardComponent({
 
     // Show hilo label: compare AI bestPick line with HKJC HIL main line, use the lower value
     const getHiloLabel = () => {
-        const pick = probability.ia?.bestPick;
+        const pick = probability.ia?.bestPick ?? probability.ia?.picks?.goals?.bestPick;
         if (!pick) return null;
         const match = pick.match(/^(OVER|UNDER)_(\d+\.?\d*)$/);
         if (!match) return null;
@@ -108,120 +108,6 @@ function DetailsCardComponent({
     const conditionAway = hiloLabel ?? undefined;
     return (
         <div className="w-full flex justify-center items-center flex-col">
-            <div className="sm:w-2/3 w-5/6 flex flex-col h-48 bg-white rounded-lg mt-5 items-center justify-center">
-                <div className="sm:w-2/3 w-5/6 flex flex-col bg-white rounded-lg mt-5 items-center justify-center">
-                    <div className="w-full space-y-3 px-6">
-                        <div className="flex justify-between text-base text-gray-700 font-medium">
-
-                            <div className="flex sm:w-2/3 w-5/6 items-center">
-                                {
-                                    probability.homeTeamLogo
-                                        ? <img src={probability.homeTeamLogo}
-                                            onError={(e: any) => {
-                                                e.target.onerror = null;
-                                                e.target.src = AppAssets.logo;
-                                            }}
-                                            className="h-8 w-8 sm:h-9 sm:w-9 object-contain mr-2" />
-                                        : <></>
-                                }
-
-                                <ThemedText
-                                    className="font-bold text-[17px] sm:text-[17px] leading-tight"
-                                    type="defaultSemiBold"
-                                    style={{
-                                        color: "black",
-                                    }}
-                                >
-                                    {`${getTeamNameInCurrentLanguage(probability.homeLanguages, probability.homeTeamName)}`}
-                                </ThemedText>
-
-                                {
-                                    conditionHome
-                                        ? <ThemedText
-                                            className="font-bold text-[15px] sm:text-[17px] leading-tight pl-3"
-                                            type="defaultSemiBold"
-                                            style={{
-                                                color: "black",
-                                            }}
-                                        >
-                                            {`     ${conditionHome.replace(".0", "")}`}
-                                        </ThemedText> : undefined
-                                }
-                                {homeWin > 70 && <Crown winRate={homeWin} size="w-4" className="ml-2" />}
-                            </div>
-                            <span>{homeWin.toFixed(0)}%</span>
-                        </div>
-                        <div className="w-full h-2 bg-gray-200 rounded overflow-hidden">
-                            <div
-                                className="h-full"
-                                style={{
-                                    width: `${homeWin}%`,
-                                    background: 'linear-gradient(to right, rgba(255,193,7,0.1), rgba(255,193,7,0.6), rgba(255,193,7,1))',
-                                    borderRadius: 'inherit',
-                                }}
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                <div className="sm:w-2/3 w-5/6 flex flex-col bg-white rounded-lg mt-5 items-center justify-center pb-7">
-                    <div className="w-full space-y-3 px-6">
-                        <div className="flex justify-between text-base text-gray-700 font-medium">
-
-                            <div className="flex sm:w-2/3 w-5/6 items-center">
-                                {
-                                    probability.awayTeamLogo
-                                        ? <img src={probability.awayTeamLogo}
-                                            onError={(e: any) => {
-                                                e.target.onerror = null;
-                                                e.target.src = AppAssets.logo;
-                                            }}
-                                            className="h-8 w-8 sm:h-9 sm:w-9 object-contain mr-2" />
-                                        : <></>
-                                }
-
-                                <ThemedText
-                                    className="font-bold text-[17px] sm:text-[17px] leading-tight"
-                                    type="defaultSemiBold"
-                                    style={{
-                                        color: "black",
-                                    }}
-                                >
-                                    {`${getTeamNameInCurrentLanguage(probability.awayLanguages, probability.awayTeamName)}`}
-                                </ThemedText>
-
-                                {
-                                    conditionAway
-                                        ? <ThemedText
-                                            className="font-bold text-[15px] sm:text-[17px] leading-tight pl-3"
-                                            type="defaultSemiBold"
-                                            style={{
-                                                color: "black",
-                                            }}
-                                        >
-                                            {`     ${conditionAway.replace(".0", "")}`}
-                                        </ThemedText> : undefined
-                                }
-                                {awayWin > 70 && <Crown winRate={awayWin} size="w-4" className="ml-2" />}
-                            </div>
-                            <span>{awayWin.toFixed(0)}%</span>
-                        </div>
-                        <div className="w-full h-2 bg-gray-200 rounded overflow-hidden">
-                            <div
-                                className="h-full"
-                                style={{
-                                    width: `${awayWin}%`,
-                                    background: 'linear-gradient(to right, rgba(255,193,7,0.1), rgba(255,193,7,0.6), rgba(255,193,7,1))',
-                                    borderRadius: 'inherit',
-                                }}
-                            />
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-
-
             <div className="sm:w-2/3 w-5/6 flex flex-col h-48 bg-white rounded-lg mt-5 items-center justify-center">
 
                 <div className="flex items-start sm:w-2/3 w-5/6 mb-2">

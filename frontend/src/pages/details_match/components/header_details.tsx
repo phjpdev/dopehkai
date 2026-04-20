@@ -18,7 +18,7 @@ function HeaderDetailsComponent({
     const { t } = useTranslation();
 
     const getAnalysisLabel = () => {
-        const pick = data.ia?.bestPick;
+        const pick = data.ia?.bestPick ?? data.ia?.picks?.goals?.bestPick;
         if (!pick) return null;
 
         const match = pick.match(/^(OVER|UNDER)_(\d+\.?\d*)$/);
@@ -41,7 +41,7 @@ function HeaderDetailsComponent({
             <div className="sm:w-2/3 w-5/6">
                 <CardMatch
                     widht={"100%"}
-                    crownPosition="topCenter"
+                    crownPosition="leagueRowRight"
                     navigate={navigate}
                     match={data}
                     teams={[getTeamNameInCurrentLanguage(data.homeLanguages, data.homeTeamName), getTeamNameInCurrentLanguage(data.awayLanguages, data.awayTeamName)]}

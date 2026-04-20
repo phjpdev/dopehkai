@@ -13,7 +13,7 @@ export type Props = {
     teams: string[]
     id?: string
     widht?: any,
-    crownPosition?: "centerRight" | "topCenter"
+    crownPosition?: "centerRight" | "topCenter" | "leagueRowRight" | "cardTopRight"
     match: Match | Probability
     navigate: NavigateFunction
 };
@@ -94,7 +94,7 @@ export function CardMatch({
 
     return (
         <>
-            <div className="relative mb-2">
+            <div className="relative mb-1">
                 {higherWinRate > 70 && crownPosition === "topCenter" && (
                     <div
                         className="absolute -top-5 left-1/2 -translate-x-1/2 ml-4 sm:ml-5 z-10 rounded-md px-2 py-1 shadow-sm flex items-center justify-center"
@@ -114,8 +114,13 @@ export function CardMatch({
                         <span className="text-[10px] sm:text-xs font-semibold mt-0.5">{month.toUpperCase()}</span>
                     </div>
 
-                    {/* Main content */}
-                    <div className="flex flex-1 items-center justify-between py-3 px-2 sm:px-4 gap-1">
+                    {/* Main content — relative so cardTopRight crowns sit above away column */}
+                    <div className="relative flex flex-1 items-center justify-between py-3 px-2 sm:px-4 gap-1">
+                        {higherWinRate > 70 && crownPosition === "cardTopRight" && (
+                            <div className="absolute top-1 right-2 sm:top-1.5 sm:right-3 z-10 pointer-events-none flex items-center">
+                                <Crown winRate={higherWinRate} size="w-3 sm:w-3.5" />
+                            </div>
+                        )}
 
                         {/* Home team */}
                         <div className="flex flex-col items-center flex-1 min-w-0">
@@ -137,22 +142,29 @@ export function CardMatch({
                         </div>
 
                         {/* Center info */}
-                        <div className="relative flex flex-col items-center justify-center gap-0.5 flex-shrink-0 px-1 sm:px-2">
-                            {/* League flag + name */}
-                            <div className="flex flex-row items-center gap-1">
-                                {flagUrl && (
-                                    <img
-                                        src={flagUrl}
-                                        alt={competitionName || leagueCode || ""}
-                                        title={competitionName || ""}
-                                        className="h-3 w-4 sm:h-3.5 sm:w-6 object-cover rounded-[1px] flex-shrink-0"
-                                        onError={(e: any) => { e.target.style.display = 'none'; }}
-                                    />
-                                )}
-                                {(competitionName || leagueCode) && (
-                                    <span className="text-[7px] sm:text-[9px] font-semibold text-gray-600" style={{ maxWidth: 70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {competitionName || leagueCode}
-                                    </span>
+                        <div className="relative flex flex-col items-center justify-center gap-0.5 flex-shrink-0 px-1 sm:px-2 min-w-[6.5rem] sm:min-w-[8.5rem]">
+                            {/* League flag + name (+ crowns for details header) */}
+                            <div className="flex flex-row items-center gap-1 w-full">
+                                <div className="flex flex-row items-center gap-1 min-w-0 flex-1">
+                                    {flagUrl && (
+                                        <img
+                                            src={flagUrl}
+                                            alt={competitionName || leagueCode || ""}
+                                            title={competitionName || ""}
+                                            className="h-3 w-4 sm:h-3.5 sm:w-6 object-cover rounded-[1px] flex-shrink-0"
+                                            onError={(e: any) => { e.target.style.display = 'none'; }}
+                                        />
+                                    )}
+                                    {(competitionName || leagueCode) && (
+                                        <span className="text-[7px] sm:text-[9px] font-semibold text-gray-600 min-w-0" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {competitionName || leagueCode}
+                                        </span>
+                                    )}
+                                </div>
+                                {higherWinRate > 70 && crownPosition === "leagueRowRight" && (
+                                    <div className="flex-shrink-0 flex items-center justify-end self-start pt-0.5 pointer-events-none">
+                                        <Crown winRate={higherWinRate} size="w-3 sm:w-3.5" />
+                                    </div>
                                 )}
                             </div>
 

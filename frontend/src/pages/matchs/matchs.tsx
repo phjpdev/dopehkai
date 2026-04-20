@@ -223,83 +223,71 @@ function MatchsPage() {
 
                     <div className="w-screen flex flex-col items-start mt-20">
                         <div
-                            className="sm:w-2/3 w-5/6 mx-auto bg-white mt-5 rounded-lg justify-center items-center flex flex-wrap gap-3 p-3 shadow-lg"
-                            style={{
-                                backgroundColor: "white",
-                            }}
+                            className="mx-auto mt-5 w-11/12 rounded-lg bg-white p-2 shadow-lg sm:w-3/5 sm:p-2.5"
+                            style={{ backgroundColor: "white" }}
                         >
-                            <div
-                                onClick={() => setSelectedDay(undefined)}
-                                style={{
-                                    backgroundColor: !selectedDay ? AppColors.primary : "white",
-                                    border: !selectedDay ? "none" : "2px solid #e5e7eb",
-                                }}
-                                className={`px-5 py-3 rounded-lg cursor-pointer transform transition-all duration-300 hover:scale-105 flex items-center gap-2 font-semibold ${
-                                    !selectedDay 
-                                        ? "text-white shadow-md" 
-                                        : "text-black hover:bg-gray-50 hover:border-gray-300"
-                                }`}
-                            >
-                                <ThemedText
-                                    type="subtitle"
-                                    className={`text-xs sm:text-sm flex items-center ${!selectedDay ? "text-white" : "text-black"}`}
-                                    colorText={!selectedDay ? "white" : "black"}
-                                >
-                                    {t("all")}
-                                </ThemedText>
-                                <svg 
-                                    className={`w-4 h-4 flex-shrink-0 ${!selectedDay ? "text-white" : "text-black"}`}
-                                    fill="none" 
-                                    stroke="currentColor" 
-                                    viewBox="0 0 24 24"
-                                    style={{ display: "block" }}
-                                >
-                                    <path 
-                                        strokeLinecap="round" 
-                                        strokeLinejoin="round" 
-                                        strokeWidth={2.5} 
-                                        d="M9 5l7 7-7 7" 
-                                    />
-                                </svg>
-                            </div>
-
-                            {days.map((day, index) => (
+                            <div className="flex w-full flex-nowrap items-stretch gap-1.5 sm:gap-2">
                                 <div
-                                    key={index}
-                                    onClick={() => setSelectedDay(day)}
+                                    onClick={() => setSelectedDay(undefined)}
                                     style={{
-                                        backgroundColor: selectedDay === day ? AppColors.primary : "white",
-                                        border: selectedDay === day ? "none" : "2px solid #e5e7eb",
+                                        backgroundColor: !selectedDay ? AppColors.primary : "white",
+                                        border: !selectedDay ? "none" : "2px solid #e5e7eb",
                                     }}
-                                    className={`px-5 py-3 rounded-lg cursor-pointer transform transition-all duration-300 hover:scale-105 flex items-center gap-2 font-semibold ${
-                                        selectedDay === day 
-                                            ? "text-white shadow-md" 
+                                    className={`flex h-9 min-h-9 min-w-0 flex-1 basis-0 cursor-pointer items-center justify-center gap-0.5 rounded-md px-1 text-[11px] font-semibold transition-transform hover:scale-[1.02] sm:px-1.5 sm:text-xs ${
+                                        !selectedDay
+                                            ? "text-white shadow-sm"
                                             : "text-black hover:bg-gray-50 hover:border-gray-300"
                                     }`}
                                 >
                                     <ThemedText
-                                        type="title"
-                                        className={`text-xs sm:text-sm font-body flex items-center ${selectedDay === day ? "text-white" : "text-black"}`}
-                                        colorText={selectedDay === day ? "white" : "black"}
+                                        type="subtitle"
+                                        className={`truncate text-center text-[11px] leading-tight sm:text-xs ${!selectedDay ? "text-white" : "text-black"}`}
+                                        colorText={!selectedDay ? "white" : "black"}
                                     >
-                                        {day}
+                                        {t("all")}
                                     </ThemedText>
-                                    <svg 
-                                        className={`w-4 h-4 flex-shrink-0 ${selectedDay === day ? "text-white" : "text-black"}`}
-                                        fill="none" 
-                                        stroke="currentColor" 
+                                    <svg
+                                        className={`h-3 w-3 flex-shrink-0 ${!selectedDay ? "text-white" : "text-black"}`}
+                                        fill="none"
+                                        stroke="currentColor"
                                         viewBox="0 0 24 24"
-                                        style={{ display: "block" }}
                                     >
-                                        <path 
-                                            strokeLinecap="round" 
-                                            strokeLinejoin="round" 
-                                            strokeWidth={2.5} 
-                                            d="M9 5l7 7-7 7" 
-                                        />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                                     </svg>
                                 </div>
-                            ))}
+
+                                {days.map((day, index) => (
+                                    <div
+                                        key={index}
+                                        onClick={() => setSelectedDay(day)}
+                                        style={{
+                                            backgroundColor: selectedDay === day ? AppColors.primary : "white",
+                                            border: selectedDay === day ? "none" : "2px solid #e5e7eb",
+                                        }}
+                                        className={`flex h-9 min-h-9 min-w-0 flex-1 basis-0 cursor-pointer items-center justify-center gap-0.5 rounded-md px-1 text-[11px] font-semibold transition-transform hover:scale-[1.02] sm:px-1.5 sm:text-xs ${
+                                            selectedDay === day
+                                                ? "text-white shadow-sm"
+                                                : "text-black hover:bg-gray-50 hover:border-gray-300"
+                                        }`}
+                                    >
+                                        <ThemedText
+                                            type="title"
+                                            className={`truncate text-center font-body text-[11px] leading-tight sm:text-xs ${selectedDay === day ? "text-white" : "text-black"}`}
+                                            colorText={selectedDay === day ? "white" : "black"}
+                                        >
+                                            {day}
+                                        </ThemedText>
+                                        <svg
+                                            className={`h-3 w-3 flex-shrink-0 ${selectedDay === day ? "text-white" : "text-black"}`}
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
 
@@ -328,10 +316,11 @@ function MatchsPage() {
                                                 return null;
                                             }
                                             return (
-                                                <div key={matchId} id={`match-${matchId}`} className="pt-4 sm:w-3/5 w-11/12 mx-auto">
+                                                <div key={matchId} id={`match-${matchId}`} className="pt-1.5 sm:w-3/5 w-11/12 mx-auto">
                                                     <CardMatch
                                                         widht={"100%"}
                                                         id={matchId}
+                                                        crownPosition="cardTopRight"
                                                         navigate={navigate}
                                                         match={m}
                                                         teams={[getTeamNameInCurrentLanguage(m.homeLanguages, m.homeTeamName), getTeamNameInCurrentLanguage(m.awayLanguages, m.awayTeamName)]}
@@ -350,7 +339,7 @@ function MatchsPage() {
                             </div>
                             : days && days.length > 0 ? days.map((d) => {
                                 return <div key={d}>
-                                    <div className="sm:w-2/3 w-5/6 mx-auto items-start flex mb-6 mt-8">
+                                    <div className="mx-auto mb-6 mt-8 flex w-11/12 items-start sm:w-3/5">
 
                                         <div className="flex items-start w-screen">
                                             <div className="w-1 bg-black mr-2 self-stretch" />
@@ -383,10 +372,11 @@ function MatchsPage() {
                                                     return null;
                                                 }
                                                 return (
-                                                    <div key={matchId} id={`match-${matchId}`} className="pt-4 sm:w-3/5 w-11/12 mx-auto">
+                                                    <div key={matchId} id={`match-${matchId}`} className="pt-1.5 sm:w-3/5 w-11/12 mx-auto">
                                                         <CardMatch
                                                             widht={"100%"}
                                                             id={matchId}
+                                                            crownPosition="cardTopRight"
                                                             navigate={navigate}
                                                             match={m}
                                                             teams={[getTeamNameInCurrentLanguage(m.homeLanguages, m.homeTeamName), getTeamNameInCurrentLanguage(m.awayLanguages, m.awayTeamName)]}
