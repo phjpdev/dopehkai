@@ -69,9 +69,10 @@ export function CardMatchComponent({
                 <div className="relative z-10 flex items-center justify-center h-full w-full px-10">
 
                     <div className="flex gap-2 items-center justify-end mr-4" style={{ width: "70%" }}>
-                        <div>
+                        <div className="flex-1">
                             <div style={{ height: 10 }} />
-                            <div className="flex items-center justify-end gap-1">
+                            <div className="flex items-center justify-between gap-1">
+                                {homeWin != null && homeWin > 70 && <Crown winRate={homeWin} size="w-3 sm:w-4" />}
                                 <ThemedText
                                     className="font-bold text-[9px] sm:text-[14px] leading-tight"
                                     type="defaultSemiBold"
@@ -88,7 +89,6 @@ export function CardMatchComponent({
                                 >
                                     {teams[0]}
                                 </ThemedText>
-                                {homeWin != null && homeWin > 70 && <Crown winRate={homeWin} size="w-3 sm:w-4" />}
                             </div>
 
                             <div style={{ height: 5 }} />
@@ -153,8 +153,8 @@ export function CardMatchComponent({
                                 e.target.src = AppAssets.logo;
                             }}
                         />
-                        <div>
-                            <div className="flex items-center gap-1">
+                        <div className="flex-1">
+                            <div className="flex items-center justify-between gap-1">
                                 <ThemedText
                                     className="font-bold text-[9px] sm:text-[14px] leading-tight"
                                     type="defaultSemiBold"
