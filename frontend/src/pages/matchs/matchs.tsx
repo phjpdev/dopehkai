@@ -191,10 +191,9 @@ function MatchsPage() {
             : isLoading
                 ?
                 <Loading />
-                : <div className="overflow-x-hidden h-screen">
+                : <div className="relative flex h-[100dvh] w-full max-w-full flex-col overflow-hidden">
 
-
-                    <div className="absolute inset-0 w-full h-full z-[-1]">
+                    <div className="pointer-events-none absolute inset-0 -z-10 h-full w-full">
                         <div
                             className="absolute inset-0 w-full h-full bg-cover bg-center pointer-events-none"
                             style={{
@@ -218,10 +217,12 @@ function MatchsPage() {
                         ></div>
                     </div>
 
-
                     <AppBarCompoonent />
 
-                    <div className="w-screen flex flex-col items-start mt-20">
+                    <div
+                        className="relative z-10 flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                    >
+                    <div className="flex w-full min-w-0 flex-col items-center pb-6 pt-20">
                         <div
                             className="mx-auto mt-5 w-11/12 rounded-lg bg-white p-2 shadow-lg sm:w-3/5 sm:p-2.5"
                             style={{ backgroundColor: "white" }}
@@ -341,7 +342,7 @@ function MatchsPage() {
                                 return <div key={d}>
                                     <div className="mx-auto mb-6 mt-8 flex w-11/12 items-start sm:w-3/5">
 
-                                        <div className="flex items-start w-screen">
+                                        <div className="flex w-full min-w-0 items-start">
                                             <div className="w-1 bg-black mr-2 self-stretch" />
                                             <div className="flex flex-col justify-center space-y-2 text-white">
                                                 <p className="sm:text-2xl text-base sm:h-7 h-6 font-bold">
@@ -408,7 +409,8 @@ function MatchsPage() {
                         </a>
                     }
 
-                </div >
+                    </div>
+                </div>
 
 
 
