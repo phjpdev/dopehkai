@@ -103,7 +103,16 @@ function PickCard({ typeLine1, typeLine2, bestPick, confidence, loading }: Props
     );
 }
 
-export function LockedPickCard({ typeLine1, typeLine2 }: { typeLine1: string; typeLine2: string }) {
+export function LockedPickCard({
+    typeLine1,
+    typeLine2,
+    lockHint = "VVIP 會員專享",
+}: {
+    typeLine1: string;
+    typeLine2: string;
+    /** Shown for VIP (VVIP-only picks) vs normal (all picks locked). */
+    lockHint?: string;
+}) {
     return (
         <div className="sm:w-2/3 w-5/6 mx-auto bg-white rounded-xl mt-3 overflow-hidden shadow-sm">
             <div className="flex flex-nowrap items-center px-4 py-3 gap-3">
@@ -118,8 +127,8 @@ export function LockedPickCard({ typeLine1, typeLine2 }: { typeLine1: string; ty
                 </div>
                 <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
                     <img src={AppAssets.lock} alt="Lock" className="w-5 h-5 opacity-60" />
-                    <ThemedText className="text-sm text-gray-400" type="default">
-                        VVIP 會員專享
+                    <ThemedText className="text-sm text-gray-400 whitespace-nowrap truncate" type="default">
+                        {lockHint}
                     </ThemedText>
                 </div>
                 <div className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">

@@ -59,16 +59,10 @@ function LockedAnalysisCard({ kickOff }: Props) {
                     className="w-12 h-12 mb-2"
                 />
                 <ThemedText
-                    className="text-sm text-black mb-1"
+                    className="text-xs sm:text-sm text-black mb-2 text-center px-1 whitespace-nowrap overflow-x-auto max-w-full"
                     type="default"
                 >
-                    付費後可查看分析
-                </ThemedText>
-                <ThemedText
-                    className="text-xs text-gray-500 mb-2"
-                    type="default"
-                >
-                    距離開賽剩餘
+                    付費後可查看分析　距離開賽剩餘
                 </ThemedText>
                 <div className="text-2xl font-bold text-orange-500">
                     {timeRemaining}
