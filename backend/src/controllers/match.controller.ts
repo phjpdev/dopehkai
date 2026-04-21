@@ -1,6 +1,6 @@
 import { API } from "../api/api";
 import { Request, Response } from "express";
-import { Daum, FootyLogic } from "model/footylogic.model";
+import { Daum, Event, FootyLogic } from "model/footylogic.model";
 import { FootyLogicDetails } from "model/footylogic_details.model";
 import { AwayTeam, HomeTeam, RecentMatch } from "model/footylogic_last_games";
 import { Match, Predictions as MatchPredictions, ResultIA } from "model/match.model";
@@ -25,6 +25,29 @@ import { convertToSimplifiedChinese } from "../service/chinese-simplify";
 import { cacheGet, cacheSet, cacheDel, CacheKeys } from "../cache/redis";
 import { runAnalysisBatch } from "../service/analysisWorker";
 import { fetchLogosForList } from "../service/fetchLogosForList";
+
+/** Map FootyLogic list event → Firestore match fields (HKJC sync removes finished games; past-results needs this). */
+function footyEventToMatchPartial(ev: Event): Partial<Match> {
+    return {
+        id: ev.eventId,
+        eventId: ev.eventId,
+        kickOff: ev.kickOff,
+        kickOffDate: ev.kickOffDate,
+        kickOffDateLocal: ev.kickOffDateLocal,
+        kickOffTime: ev.kickOffTime || "",
+        homeTeamName: ev.homeTeamName,
+        awayTeamName: ev.awayTeamName,
+        competitionName: ev.competitionName,
+        competitionId: ev.competitionId,
+        homeForm: ev.homeForm || "",
+        awayForm: ev.awayForm || "",
+        hadHomePct: ev.hadHomePct,
+        hadAwayPct: ev.hadAwayPct,
+        hadDrawPct: ev.hadDrawPct,
+        matchOutcome: ev.matchOutcome || "",
+        outcomeName: ev.outcomeName,
+    };
+}
 
 /** UI reads `homeForm` / `awayForm` (comma W,D,L); FootyLogic stores the same in `lastGames.*.teamForm`. */
 function syncFormFieldsFromLastGames(matchData: Match): void {
@@ -1289,7 +1312,8 @@ class MatchController {
                 }
             };
 
-            const footyById: Record<string, { outcomeName?: string; matchOutcome?: string }> = {};
+            /** FootyLogic games feed still lists recent results; HKJC sync deletes finished IDs from `matches`. */
+            const eventsById = new Map<string, Event>();
             try {
                 const gamesRes = await API.GET(Global.footylogicGames);
                 if (gamesRes.status === 200 && gamesRes.data?.data) {
@@ -1297,10 +1321,7 @@ class MatchController {
                         for (const ev of daum.events || []) {
                             const ms = kickOffToMs(ev.kickOff);
                             if (ms == null || ms < windowStartMs || ms > windowEndMs) continue;
-                            footyById[ev.eventId] = {
-                                outcomeName: ev.outcomeName,
-                                matchOutcome: ev.matchOutcome,
-                            };
+                            eventsById.set(ev.eventId, ev);
                         }
                     }
                 }
@@ -1324,29 +1345,32 @@ class MatchController {
             };
             const rows: Row[] = [];
 
-            for (const docSnap of snapshot.docs) {
-                const data = docSnap.data() as Match;
-                if (!data.kickOff) continue;
-                const ms = kickOffToMs(data.kickOff);
-                if (ms == null || ms < windowStartMs || ms > windowEndMs) continue;
+            const pushRowFromMatchData = (
+                id: string,
+                data: Match,
+                geminiStatus: Row["geminiStatus"],
+                geminiMessage: string | undefined,
+                ia: ResultIA | undefined
+            ) => {
+                rows.push({
+                    id,
+                    kickOff: data.kickOff,
+                    homeTeamName: data.homeTeamName ?? "",
+                    awayTeamName: data.awayTeamName ?? "",
+                    competitionName: data.competitionName,
+                    outcomeName: data.outcomeName || undefined,
+                    matchOutcome: data.matchOutcome || undefined,
+                    ia,
+                    geminiStatus,
+                    geminiMessage,
+                });
+            };
 
-                const id = docSnap.id;
-                const footy = footyById[id];
-                const outcomeName = data.outcomeName ?? footy?.outcomeName ?? "";
-                const matchOutcome = data.matchOutcome ?? footy?.matchOutcome ?? "";
-
-                const cachedPicks = data.ia?.picks;
-                const hasCompletePicks =
-                    cachedPicks?.goals?.bestPick &&
-                    cachedPicks?.had?.bestPick &&
-                    cachedPicks?.handicap?.bestPick &&
-                    cachedPicks?.corners?.bestPick;
-
+            const runGeminiBranch = async (id: string, data: Match, hadComplete: boolean) => {
                 let geminiStatus: Row["geminiStatus"] = "cached";
                 let geminiMessage: string | undefined;
                 let ia = data.ia as ResultIA | undefined;
-
-                if (!hasCompletePicks) {
+                if (!hadComplete) {
                     const out = await MatchController.ensureGeminiAnalysisForMatch(id);
                     if (out.ok === true) {
                         geminiStatus = "refreshed";
@@ -1361,19 +1385,51 @@ class MatchController {
                         }
                     }
                 }
+                pushRowFromMatchData(id, data, geminiStatus, geminiMessage, ia);
+            };
 
-                rows.push({
-                    id,
-                    kickOff: data.kickOff,
-                    homeTeamName: data.homeTeamName ?? "",
-                    awayTeamName: data.awayTeamName ?? "",
-                    competitionName: data.competitionName,
-                    outcomeName: outcomeName || undefined,
-                    matchOutcome: matchOutcome || undefined,
-                    ia,
-                    geminiStatus,
-                    geminiMessage,
-                });
+            const seenIds = new Set<string>();
+
+            const sortedEvents = Array.from(eventsById.values()).sort(
+                (a, b) => (kickOffToMs(b.kickOff) ?? 0) - (kickOffToMs(a.kickOff) ?? 0)
+            );
+
+            for (const ev of sortedEvents) {
+                const id = ev.eventId;
+                seenIds.add(id);
+                const matchRef = doc(db, Tables.matches, id);
+                const snap = await getDoc(matchRef);
+                const partial = footyEventToMatchPartial(ev);
+                const existing = snap.exists() ? (snap.data() as Match) : ({} as Match);
+                const merged = { ...existing, ...partial } as Match;
+                await setDoc(matchRef, merged as any, { merge: true });
+
+                const cachedPicks = merged.ia?.picks;
+                const hasCompletePicks =
+                    cachedPicks?.goals?.bestPick &&
+                    cachedPicks?.had?.bestPick &&
+                    cachedPicks?.handicap?.bestPick &&
+                    cachedPicks?.corners?.bestPick;
+
+                await runGeminiBranch(id, merged, !!hasCompletePicks);
+            }
+
+            for (const docSnap of snapshot.docs) {
+                if (seenIds.has(docSnap.id)) continue;
+                const data = docSnap.data() as Match;
+                if (!data.kickOff) continue;
+                const ms = kickOffToMs(data.kickOff);
+                if (ms == null || ms < windowStartMs || ms > windowEndMs) continue;
+
+                const id = docSnap.id;
+                const cachedPicks = data.ia?.picks;
+                const hasCompletePicks =
+                    cachedPicks?.goals?.bestPick &&
+                    cachedPicks?.had?.bestPick &&
+                    cachedPicks?.handicap?.bestPick &&
+                    cachedPicks?.corners?.bestPick;
+
+                await runGeminiBranch(id, data, !!hasCompletePicks);
             }
 
             rows.sort((a, b) => kickOffToMs(b.kickOff)! - kickOffToMs(a.kickOff)!);
