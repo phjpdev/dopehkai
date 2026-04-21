@@ -26,6 +26,15 @@ import { cacheGet, cacheSet, cacheDel, CacheKeys } from "../cache/redis";
 import { runAnalysisBatch } from "../service/analysisWorker";
 import { fetchLogosForList } from "../service/fetchLogosForList";
 
+/** UI reads `homeForm` / `awayForm` (comma W,D,L); FootyLogic stores the same in `lastGames.*.teamForm`. */
+function syncFormFieldsFromLastGames(matchData: Match): void {
+    if (!matchData.lastGames) return;
+    const htf = matchData.lastGames.homeTeam?.teamForm;
+    const atf = matchData.lastGames.awayTeam?.teamForm;
+    if (htf) matchData.homeForm = htf;
+    if (atf) matchData.awayForm = atf;
+}
+
 class MatchController {
     static async getMatchResults() {
         console.log("START....")
@@ -415,6 +424,7 @@ class MatchController {
 
             const futureMatches = list.sort((a: any, b: any) => new Date(a.kickOff).getTime() - new Date(b.kickOff).getTime());
             futureMatches.forEach(fillListIAFromPredictions);
+            futureMatches.forEach((m: Match) => syncFormFieldsFromLastGames(m));
 
             // Fetch logos for matches that don't have them (api-sports.io via GetFixture), like topx-betting-mern
             const listWithLogos = await fetchLogosForList(futureMatches);
@@ -457,6 +467,7 @@ class MatchController {
                 const cached = await cacheGet<Match>(CacheKeys.matchDetail(id));
                 if (cached) {
                     fillIAFromPredictions(cached);
+                    syncFormFieldsFromLastGames(cached);
                     const isComplete = !!(cached.lastGames?.homeTeam && cached.lastGames?.awayTeam);
                     console.log("[getMatchDetails] Returning match from Redis cache (complete:", isComplete + ")");
                     if (!isComplete) {
@@ -475,6 +486,7 @@ class MatchController {
                 if (matchSnap.exists()) {
                     existingMatchData = matchSnap.data() as Match;
                     fillIAFromPredictions(existingMatchData);
+                    syncFormFieldsFromLastGames(existingMatchData);
                     const isComplete = !!(existingMatchData.lastGames?.homeTeam && existingMatchData.lastGames?.awayTeam);
                     console.log("[getMatchDetails] Returning match from database (complete:", isComplete + ")");
                     await cacheSet(CacheKeys.matchDetail(id), existingMatchData, 300);
@@ -571,6 +583,7 @@ class MatchController {
             if (existingMatchData && !matchEvent) {
                 // Match exists in DB but not in games API, return DB data
                 console.log("[getMatchDetails] Returning match from database (not found in games API)");
+                syncFormFieldsFromLastGames(existingMatchData);
                 return res.json(existingMatchData);
             }
             
@@ -769,7 +782,8 @@ class MatchController {
                     }
                 }
             }
-            
+            syncFormFieldsFromLastGames(matchData);
+
             // Fetch predictions only if needed and we have fixture_id
             if (needsPredictions && fixture_id) {
                 try {
@@ -1027,6 +1041,8 @@ class MatchController {
                     if (lgRes.status === 200 && lgRes.data?.statusCode === 200) {
                         const lastGames = parseToInformationForm(lgRes.data.data, matchData.homeTeamName ?? "", matchData.awayTeamName ?? "");
                         updates.lastGames = lastGames;
+                        if (lastGames.homeTeam?.teamForm) updates.homeForm = lastGames.homeTeam.teamForm;
+                        if (lastGames.awayTeam?.teamForm) updates.awayForm = lastGames.awayTeam.teamForm;
                     }
                 } catch { /* ignore */ }
             }
