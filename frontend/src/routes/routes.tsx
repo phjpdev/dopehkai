@@ -19,6 +19,7 @@ const PastMatchesAdminPage = lazy(() => import("../pages/admin/past_matches/past
 const RecordsPage = lazy(() => import("../pages/records/records"));
 const Records2Page = lazy(() => import("../pages/records2/records2"));
 const TermsPage = lazy(() => import("../pages/terms/terms"));
+const CardLotteryPage = lazy(() => import("../pages/card/card"));
 
 const AppRoutes = () => {
     const { userRole } = useAuthStore();
@@ -33,6 +34,7 @@ const AppRoutes = () => {
                     <Route path="/records" element={<RecordsPage />} />
                     <Route path="/records2" element={<Records2Page />} />
                     <Route path="/terms" element={<TermsPage />} />
+                    <Route path="/card" element={<CardLotteryPage />} />
 
                     {userRole ?
                         <Route path="/matches" element={<MatchsPage />} />
