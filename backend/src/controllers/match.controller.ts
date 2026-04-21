@@ -1091,7 +1091,7 @@ class MatchController {
             const matchRef = doc(db, Tables.matches, matchId);
             const matchSnap = await getDoc(matchRef);
             if (!matchSnap.exists()) {
-                return { ok: false, reason: "not_found" };
+                return { ok: false as const, reason: "not_found" as const };
             }
             let matchData = matchSnap.data() as Match;
             if (!matchData.homeForm) matchData.homeForm = "";
@@ -1109,7 +1109,7 @@ class MatchController {
                 typeof matchData.ia.away === "number" &&
                 hasCompletePicks
             ) {
-                return { ok: true, ia: matchData.ia as ResultIA };
+                return { ok: true as const, ia: matchData.ia as ResultIA };
             }
 
             const hkjcMatch = await ApiHKJCMatchById(matchId);
@@ -1154,8 +1154,8 @@ class MatchController {
 
             if (homeWinRate == null || awayWinRate == null) {
                 return {
-                    ok: false,
-                    reason: "no_predictions",
+                    ok: false as const,
+                    reason: "no_predictions" as const,
                     message: "No ML predictions, HKJC 1X2 implied %, or stored IA win rates for this match.",
                 };
             }
@@ -1214,10 +1214,10 @@ class MatchController {
             await cacheDel(CacheKeys.matchesList(true));
             const analysisRef = doc(db, Tables.analysis, matchId);
             await setDoc(analysisRef, { matchId, ...matchData.ia }, { merge: true });
-            return { ok: true, ia: matchData.ia as ResultIA };
+            return { ok: true as const, ia: matchData.ia as ResultIA };
         } catch (e: any) {
             console.error("[ensureGeminiAnalysisForMatch]", matchId, e?.message || e);
-            return { ok: false, reason: "error", message: e?.message || String(e) };
+            return { ok: false as const, reason: "error" as const, message: e?.message || String(e) };
         }
     }
 
@@ -1226,7 +1226,7 @@ class MatchController {
 
         try {
             const out = await MatchController.ensureGeminiAnalysisForMatch(id);
-            if (!out.ok) {
+            if (out.ok === false) {
                 if (out.reason === "not_found") {
                     return res.status(404).json({ error: "Match not found" });
                 }
@@ -1348,7 +1348,7 @@ class MatchController {
 
                 if (!hasCompletePicks) {
                     const out = await MatchController.ensureGeminiAnalysisForMatch(id);
-                    if (out.ok) {
+                    if (out.ok === true) {
                         geminiStatus = "refreshed";
                         ia = out.ia;
                     } else {
