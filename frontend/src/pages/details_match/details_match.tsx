@@ -19,6 +19,7 @@ import { getTeamNameInCurrentLanguage } from "../../ultis/languageUtils";
 import GlobeAnimation from "../../components/globe_animation";
 import PickCard, { formatPickLabel } from "./components/pick_card";
 import DetailsCardComponent from "./components/details_card";
+import LockedAnalysisCard from "./components/locked_analysis_card";
 
 function pickConfidence(p: { confidence: number } | undefined, rawCode: string | undefined): number {
     if (typeof p?.confidence === "number" && p.confidence > 0) return p.confidence;
@@ -292,7 +293,17 @@ function DetailsMatchPage() {
                             )
                         )}
 
-                        {displayData && <DetailsCardComponent probability={displayData} />}
+                        {displayData &&
+                            (canSeeAllFourPicks ? (
+                                <DetailsCardComponent probability={displayData} />
+                            ) : canSeeVipPicks && accessResolved ? (
+                                <>
+                                    <LockedAnalysisCard kickOff={data.kickOff} />
+                                    <LockedAnalysisCard kickOff={data.kickOff} />
+                                </>
+                            ) : (
+                                <DetailsCardComponent probability={displayData} />
+                            ))}
 
                         {/* HKJC-only matches have no lastGames – show limited message instead of crashing */}
                         {data.lastGames?.homeTeam && data.lastGames?.awayTeam ? (
