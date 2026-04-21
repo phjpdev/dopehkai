@@ -64,23 +64,24 @@ function CircularProgress({ value, spinning }: { value: number; spinning?: boole
 function PickCard({ typeLine1, typeLine2, bestPick, confidence, loading }: Props) {
     return (
         <div className="sm:w-2/3 w-5/6 mx-auto bg-white rounded-xl mt-3 overflow-hidden shadow-sm">
-            <div className="flex items-center px-4 py-3 gap-3">
-                <div className="min-w-[48px]">
-                    <ThemedText className="font-bold text-sm text-black" type="defaultSemiBold">
+            <div className="flex flex-nowrap items-center px-4 py-3 gap-3">
+                <div className="flex-shrink-0 pr-1">
+                    <ThemedText
+                        className="font-bold text-sm text-black whitespace-nowrap leading-tight"
+                        type="defaultSemiBold"
+                    >
                         {typeLine1}
-                    </ThemedText>
-                    <ThemedText className="font-bold text-sm text-black" type="defaultSemiBold">
                         {typeLine2}
                     </ThemedText>
                 </div>
                 {loading ? (
-                    <div className="flex-1 flex items-center justify-center">
+                    <div className="flex-1 flex items-center justify-center min-w-0">
                         <div className="w-5 h-5 border-2 border-gray-200 border-t-yellow-400 rounded-full animate-spin" />
                     </div>
                 ) : (
-                    <div className="flex-1 flex items-center justify-center">
-                        <ThemedText className="text-sm text-gray-500" type="default">分析：</ThemedText>
-                        <ThemedText className="text-sm font-bold text-black ml-1" type="defaultSemiBold">
+                    <div className="flex-1 flex items-center justify-center min-w-0">
+                        <ThemedText className="text-sm text-gray-500 whitespace-nowrap" type="default">分析：</ThemedText>
+                        <ThemedText className="text-sm font-bold text-black ml-1 truncate min-w-0" type="defaultSemiBold">
                             {bestPick}
                         </ThemedText>
                     </div>
@@ -105,16 +106,17 @@ function PickCard({ typeLine1, typeLine2, bestPick, confidence, loading }: Props
 export function LockedPickCard({ typeLine1, typeLine2 }: { typeLine1: string; typeLine2: string }) {
     return (
         <div className="sm:w-2/3 w-5/6 mx-auto bg-white rounded-xl mt-3 overflow-hidden shadow-sm">
-            <div className="flex items-center px-4 py-3 gap-3">
-                <div className="min-w-[48px]">
-                    <ThemedText className="font-bold text-sm text-black" type="defaultSemiBold">
+            <div className="flex flex-nowrap items-center px-4 py-3 gap-3">
+                <div className="flex-shrink-0 pr-1">
+                    <ThemedText
+                        className="font-bold text-sm text-black whitespace-nowrap leading-tight"
+                        type="defaultSemiBold"
+                    >
                         {typeLine1}
-                    </ThemedText>
-                    <ThemedText className="font-bold text-sm text-black" type="defaultSemiBold">
                         {typeLine2}
                     </ThemedText>
                 </div>
-                <div className="flex-1 flex items-center justify-center gap-2">
+                <div className="flex-1 flex items-center justify-center gap-2 min-w-0">
                     <img src={AppAssets.lock} alt="Lock" className="w-5 h-5 opacity-60" />
                     <ThemedText className="text-sm text-gray-400" type="default">
                         VVIP 會員專享

@@ -14,6 +14,8 @@ export type Props = {
     id?: string
     widht?: any,
     crownPosition?: "centerRight" | "topCenter" | "leagueRowRight" | "cardTopRight"
+    /** W/L/D form badges under team names — only used on the match detail header. */
+    showFormBadges?: boolean
     match: Match | Probability
     navigate: NavigateFunction
 };
@@ -41,6 +43,7 @@ export function CardMatch({
     teams,
     id,
     crownPosition = "centerRight",
+    showFormBadges = false,
     navigate,
     match,
 }: Props) {
@@ -79,8 +82,11 @@ export function CardMatch({
     const competitionName = (match as Match).competitionName;
     const flagUrl = getLeagueFlagUrl(leagueCode);
 
-    const homeForm = match.homeForm;
-    const awayForm = match.awayForm;
+    const lg = match.lastGames;
+    const homeForm =
+        match.homeForm || (showFormBadges ? lg?.homeTeam?.teamForm : "") || "";
+    const awayForm =
+        match.awayForm || (showFormBadges ? lg?.awayTeam?.teamForm : "") || "";
 
     const handleClick = async () => {
         if (id) {
@@ -138,7 +144,7 @@ export function CardMatch({
                                 style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', maxWidth: 90 }}>
                                 {teams[0]}
                             </p>
-                            <FormBadges form={homeForm} />
+                            {showFormBadges ? <FormBadges form={homeForm} /> : null}
                         </div>
 
                         {/* Center info */}
@@ -213,7 +219,7 @@ export function CardMatch({
                                 style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', maxWidth: 90 }}>
                                 {teams[1]}
                             </p>
-                            <FormBadges form={awayForm} />
+                            {showFormBadges ? <FormBadges form={awayForm} /> : null}
                         </div>
 
                     </div>

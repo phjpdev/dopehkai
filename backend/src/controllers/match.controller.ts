@@ -424,7 +424,6 @@ class MatchController {
 
             const futureMatches = list.sort((a: any, b: any) => new Date(a.kickOff).getTime() - new Date(b.kickOff).getTime());
             futureMatches.forEach(fillListIAFromPredictions);
-            futureMatches.forEach((m: Match) => syncFormFieldsFromLastGames(m));
 
             // Fetch logos for matches that don't have them (api-sports.io via GetFixture), like topx-betting-mern
             const listWithLogos = await fetchLogosForList(futureMatches);

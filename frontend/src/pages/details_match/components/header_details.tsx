@@ -16,6 +16,7 @@ function HeaderDetailsComponent({ data }: Props) {
                 <CardMatch
                     widht={"100%"}
                     crownPosition="leagueRowRight"
+                    showFormBadges
                     navigate={navigate}
                     match={data}
                     teams={[getTeamNameInCurrentLanguage(data.homeLanguages, data.homeTeamName), getTeamNameInCurrentLanguage(data.awayLanguages, data.awayTeamName)]}
