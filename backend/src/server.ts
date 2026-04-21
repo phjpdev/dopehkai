@@ -11,6 +11,7 @@ import compression from 'compression';
 import { matchRouter } from './routes/match.routes';
 import { syncHkjcToMatches } from './service/syncHkjc';
 import { runAnalysisBatch } from './service/analysisWorker';
+import { pruneAnalysisCollection } from './service/analysisRetention';
 import { cacheDelPattern } from './cache/redis';
 import { usersRouter } from './routes/users.routes';
 import { adminRouter } from './routes/admin.routes';
@@ -192,6 +193,14 @@ async function start() {
         console.error("[STARTUP] syncHkjc failed or timed out:", e?.message || e);
     });
 
+    setImmediate(() => {
+        pruneAnalysisCollection()
+            .then((p) => {
+                if (!p.skipped && p.deleted) console.log("[STARTUP] Pruned old analysis docs:", p.deleted);
+            })
+            .catch((e) => console.warn("[STARTUP] pruneAnalysis error:", e));
+    });
+
     // After sync: trigger analysis worker once (batch Gemini for pending matches; Redis lock prevents duplicates)
     setImmediate(() => {
         runAnalysisBatch()
@@ -203,6 +212,7 @@ async function start() {
     const FIVE_MINS_MS = 5 * 60 * 1000;
     setInterval(() => {
         syncHkjcToMatches()
+            .then(() => pruneAnalysisCollection())
             .then(() => runAnalysisBatch())
             .then((r) => { if (r.ran && r.processed) console.log("[cron] Analysis batch processed", r.processed); })
             .catch((e) => console.error("[syncHkjc] interval failed:", e));

@@ -25,6 +25,7 @@ import { convertToSimplifiedChinese } from "../service/chinese-simplify";
 import { cacheGet, cacheSet, cacheDel, CacheKeys } from "../cache/redis";
 import { runAnalysisBatch } from "../service/analysisWorker";
 import { fetchLogosForList } from "../service/fetchLogosForList";
+import { kickOffStringToMs } from "../service/analysisRetention";
 
 /** Map FootyLogic list event → Firestore match fields (HKJC sync removes finished games; past-results needs this). */
 function footyEventToMatchPartial(ev: Event): Partial<Match> {
@@ -47,6 +48,23 @@ function footyEventToMatchPartial(ev: Event): Partial<Match> {
         matchOutcome: ev.matchOutcome || "",
         outcomeName: ev.outcomeName,
     };
+}
+
+/** FootyLogic sometimes uses slash dates in `kickOffDate` / `kickOffTime` while `kickOff` does not parse as ISO. */
+function footyEventKickOffMs(ev: Event): number | null {
+    let ms = kickOffStringToMs(ev.kickOff || "");
+    if (ms != null) return ms;
+    const kd = (ev.kickOffDate || "").trim();
+    const kt = (ev.kickOffTime || "").trim();
+    if (kd && kt) {
+        ms = kickOffStringToMs(`${kd} ${kt}`);
+        if (ms != null) return ms;
+    }
+    if (kd) {
+        ms = kickOffStringToMs(`${kd} 12:00`);
+        if (ms != null) return ms;
+    }
+    return null;
 }
 
 /** UI reads `homeForm` / `awayForm` (comma W,D,L); FootyLogic stores the same in `lastGames.*.teamForm`. */
@@ -1236,7 +1254,17 @@ class MatchController {
             await cacheDel(CacheKeys.matchesList(false));
             await cacheDel(CacheKeys.matchesList(true));
             const analysisRef = doc(db, Tables.analysis, matchId);
-            await setDoc(analysisRef, { matchId, ...matchData.ia }, { merge: true });
+            const analysisKickOffMs = kickOffStringToMs(matchData.kickOff);
+            await setDoc(
+                analysisRef,
+                {
+                    matchId,
+                    analysisKickOff: matchData.kickOff,
+                    ...(analysisKickOffMs != null ? { analysisKickOffMs } : {}),
+                    ...matchData.ia,
+                },
+                { merge: true }
+            );
             return { ok: true as const, ia: matchData.ia as ResultIA };
         } catch (e: any) {
             console.error("[ensureGeminiAnalysisForMatch]", matchId, e?.message || e);
@@ -1295,23 +1323,6 @@ class MatchController {
             const windowStartMs = startOfHktYmdMs(startYmd);
             const windowEndMs = endOfHktYmdMs(endYmd);
 
-            const kickOffToMs = (kickOff: string): number | null => {
-                try {
-                    if (!kickOff) return null;
-                    if (kickOff.includes("T")) {
-                        const d = new Date(kickOff);
-                        return isNaN(d.getTime()) ? null : d.getTime();
-                    }
-                    const [dp, tp] = kickOff.split(" ");
-                    if (!dp) return null;
-                    const time = tp && tp.length >= 5 ? tp.slice(0, 5) : "12:00";
-                    const d = new Date(`${dp}T${time}:00+08:00`);
-                    return isNaN(d.getTime()) ? null : d.getTime();
-                } catch {
-                    return null;
-                }
-            };
-
             /** FootyLogic games feed still lists recent results; HKJC sync deletes finished IDs from `matches`. */
             const eventsById = new Map<string, Event>();
             try {
@@ -1319,7 +1330,7 @@ class MatchController {
                 if (gamesRes.status === 200 && gamesRes.data?.data) {
                     for (const daum of gamesRes.data.data as Daum[]) {
                         for (const ev of daum.events || []) {
-                            const ms = kickOffToMs(ev.kickOff);
+                            const ms = footyEventKickOffMs(ev);
                             if (ms == null || ms < windowStartMs || ms > windowEndMs) continue;
                             eventsById.set(ev.eventId, ev);
                         }
@@ -1391,7 +1402,7 @@ class MatchController {
             const seenIds = new Set<string>();
 
             const sortedEvents = Array.from(eventsById.values()).sort(
-                (a, b) => (kickOffToMs(b.kickOff) ?? 0) - (kickOffToMs(a.kickOff) ?? 0)
+                (a, b) => (footyEventKickOffMs(b) ?? 0) - (footyEventKickOffMs(a) ?? 0)
             );
 
             for (const ev of sortedEvents) {
@@ -1418,7 +1429,7 @@ class MatchController {
                 if (seenIds.has(docSnap.id)) continue;
                 const data = docSnap.data() as Match;
                 if (!data.kickOff) continue;
-                const ms = kickOffToMs(data.kickOff);
+                const ms = kickOffStringToMs(data.kickOff);
                 if (ms == null || ms < windowStartMs || ms > windowEndMs) continue;
 
                 const id = docSnap.id;
@@ -1432,7 +1443,76 @@ class MatchController {
                 await runGeminiBranch(id, data, !!hasCompletePicks);
             }
 
-            rows.sort((a, b) => kickOffToMs(b.kickOff)! - kickOffToMs(a.kickOff)!);
+            /** HKJC removes finished fixtures from `matches`; games feed may omit them too — still show saved IA from `analysis`. */
+            try {
+                const analysisCol = collection(db, Tables.analysis);
+                const analysisSnap = await getDocs(analysisCol);
+                for (const aDoc of analysisSnap.docs) {
+                    const id = aDoc.id;
+                    if (seenIds.has(id)) continue;
+                    const a = aDoc.data() as Record<string, unknown>;
+                    const msRaw = a.analysisKickOffMs;
+                    const ms =
+                        typeof msRaw === "number" && Number.isFinite(msRaw)
+                            ? msRaw
+                            : kickOffStringToMs(String(a.analysisKickOff || ""));
+                    if (ms == null || ms < windowStartMs || ms > windowEndMs) continue;
+                    const home = Number(a.home);
+                    const away = Number(a.away);
+                    if (!Number.isFinite(home) || !Number.isFinite(away)) continue;
+                    seenIds.add(id);
+                    const mSnap = await getDoc(doc(db, Tables.matches, id));
+                    const md = mSnap.exists() ? (mSnap.data() as Match) : ({} as Match);
+                    const drawRaw = a.draw;
+                    const draw =
+                        typeof drawRaw === "number"
+                            ? drawRaw
+                            : Number.isFinite(Number(drawRaw))
+                              ? Number(drawRaw)
+                              : 0;
+                    const ia: ResultIA = {
+                        home,
+                        away,
+                        draw,
+                        bestPick: typeof a.bestPick === "string" ? a.bestPick : undefined,
+                        picks: a.picks as ResultIA["picks"],
+                    };
+                    const kickOffStr =
+                        (typeof a.analysisKickOff === "string" && a.analysisKickOff) ||
+                        md.kickOff ||
+                        (() => {
+                            const d = new Date(ms);
+                            const ymd = d.toLocaleDateString("en-CA", { timeZone: "Asia/Hong_Kong" });
+                            const hm = d.toLocaleTimeString("en-GB", {
+                                timeZone: "Asia/Hong_Kong",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                hour12: false,
+                            });
+                            return `${ymd} ${hm}`;
+                        })();
+                    const merged = {
+                        ...md,
+                        kickOff: kickOffStr,
+                        homeTeamName: md.homeTeamName || "—",
+                        awayTeamName: md.awayTeamName || "—",
+                        ia,
+                    } as Match;
+                    const picks = merged.ia?.picks;
+                    const hasCompletePicks =
+                        picks?.goals?.bestPick &&
+                        picks?.had?.bestPick &&
+                        picks?.handicap?.bestPick &&
+                        picks?.corners?.bestPick;
+                    await runGeminiBranch(id, merged, !!hasCompletePicks);
+                }
+            } catch (e) {
+                console.warn("[getPastMatchResults] analysis fallback failed", e);
+            }
+
+            rows.sort(
+                (a, b) => (kickOffStringToMs(b.kickOff) ?? 0) - (kickOffStringToMs(a.kickOff) ?? 0)
+            );
 
             return res.json({
                 timezone: "Asia/Hong_Kong",

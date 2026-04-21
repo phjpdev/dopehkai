@@ -17,6 +17,7 @@ import { Predictions } from "./predictions";
 import { matchTeamSimilarity } from "./similarity";
 import { ApiFixtureByDate } from "../data/api-fixture";
 import { FootyLogicRecentForm } from "../model/footylogic_recentform.model";
+import { kickOffStringToMs } from "./analysisRetention";
 
 const CONCURRENCY = 2;
 
@@ -189,7 +190,13 @@ async function computeAndSaveAnalysis(matchId: string, matchData: Match): Promis
   }
   if (ia) {
     const analysisRef = doc(db, Tables.analysis, matchId);
-    await setDoc(analysisRef, { matchId, ...ia });
+    const analysisKickOffMs = matchData.kickOff ? kickOffStringToMs(matchData.kickOff) : null;
+    await setDoc(analysisRef, {
+      matchId,
+      analysisKickOff: matchData.kickOff,
+      ...(analysisKickOffMs != null ? { analysisKickOffMs } : {}),
+      ...ia,
+    });
   }
   return ia;
 }
