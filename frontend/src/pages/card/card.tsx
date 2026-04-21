@@ -130,11 +130,6 @@ export default function CardLotteryPage() {
                         </div>
                     </div>
 
-                    <div className="hidden items-center gap-3 md:flex">
-                        <Badge className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-white/70 backdrop-blur">
-                            限時抽獎活動
-                        </Badge>
-                    </div>
                 </header>
 
                 <main className="relative z-10 mx-auto max-w-7xl min-w-0 px-6 pb-20 lg:px-10">
