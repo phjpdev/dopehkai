@@ -107,13 +107,6 @@ export default function CardLotteryPage() {
         }, 350);
     };
 
-    const resetDraw = () => {
-        if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
-        revealTimerRef.current = null;
-        setRevealed(false);
-        setSelected(null);
-    };
-
     return (
         <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#06070a] text-white font-body">
             <AppBarComponent />
@@ -122,13 +115,18 @@ export default function CardLotteryPage() {
                 <BackgroundDecor />
 
                 <header className="relative z-10 mx-auto flex w-full max-w-7xl min-w-0 items-center justify-between px-6 py-6 lg:px-10">
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#c9a45c]/40 bg-white/5 backdrop-blur">
                             <Trophy className="h-5 w-5 text-[#d8b36b]" />
                         </div>
-                        <div>
-                            <div className="text-xl font-semibold tracking-[0.12em] text-white/95">道普</div>
-                            <div className="text-xs tracking-[0.08em] text-white/45">足球智慧分析</div>
+                        <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                            <div className="min-w-0">
+                                <div className="text-xl font-semibold tracking-[0.12em] text-white/95">道普</div>
+                                <div className="mt-0.5 text-xs tracking-[0.08em] text-white/45">足球智慧分析</div>
+                            </div>
+                            <Badge className="shrink-0 self-center rounded-full border border-[#c9a45c]/25 bg-white/5 px-3 py-1 text-[10px] font-medium tracking-[0.12em] text-[#d8b36b] backdrop-blur sm:text-xs sm:tracking-[0.2em]">
+                                尊榮體驗
+                            </Badge>
                         </div>
                     </div>
 
@@ -140,41 +138,57 @@ export default function CardLotteryPage() {
                 </header>
 
                 <main className="relative z-10 mx-auto max-w-7xl min-w-0 px-6 pb-20 lg:px-10">
-                    <section className="grid min-h-[80vh] items-center gap-10 py-8 lg:grid-cols-[1.05fr_0.95fr] lg:py-10">
+                    <section className="grid items-start gap-10 py-8 lg:min-h-[80vh] lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-10">
                         <div className="max-w-2xl min-w-0">
-                            <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-[#c9a45c]/25 bg-white/5 px-4 py-2 text-xs tracking-[0.2em] text-[#d8b36b] backdrop-blur">
-                                尊榮體驗
-                            </div>
-
-                            <h1 className="text-5xl font-semibold leading-[1.12] tracking-tight text-white md:text-7xl md:leading-[1.1] lg:text-[88px] lg:leading-[1.12]">
-                                足球幸運抽獎
-                                <span className="mt-3 block bg-gradient-to-r from-[#fff4d6] via-[#d8b36b] to-[#9d7740] bg-clip-text pb-[0.12em] pt-[0.02em] text-transparent [-webkit-background-clip:text] [background-clip:text]">
-                                    贏取專屬好禮
-                                </span>
-                            </h1>
-
-                            <p className="mt-8 max-w-xl text-base leading-8 text-white/62 md:text-lg">
-                                高端足球數據體驗頁面，融合抽卡互動與品牌感視覺。點選一張卡片揭曉你的獎勵，完成後即可透過電報聯絡客服領獎。
-                            </p>
-
-                            <div className="mt-10 flex flex-wrap items-center gap-4">
-                                <Button
-                                    className="h-12"
-                                    onClick={() => {
-                                        document.getElementById("draw-section")?.scrollIntoView({ behavior: "smooth" });
+                            <div className="relative flex min-h-[min(88vh,920px)] flex-col overflow-hidden rounded-[28px] bg-[#06070a] lg:block lg:min-h-0 lg:rounded-none lg:bg-transparent">
+                                <div
+                                    className="pointer-events-none absolute inset-0 scale-[1.08] bg-[#06070a] lg:hidden"
+                                    style={{
+                                        backgroundImage: `linear-gradient(180deg, rgba(6,7,10,0.52) 0%, rgba(6,7,10,0.28) 38%, rgba(6,7,10,0.35) 58%, rgba(6,7,10,0.72) 100%), url(${AppAssets.background_image})`,
+                                        backgroundSize: "cover",
+                                        backgroundPosition: "center 40%",
+                                        backgroundRepeat: "no-repeat",
                                     }}
-                                >
-                                    立即參與
-                                    <ChevronRight className="ml-1 h-4 w-4" />
-                                </Button>
+                                />
+                                <div className="pointer-events-none absolute inset-0 bg-black/12 lg:hidden" />
+                                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_100%_55%_at_50%_35%,rgba(216,179,107,0.09),transparent_52%)] lg:hidden" />
+                                <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#06070a] from-0% via-transparent via-20% to-transparent to-38% lg:hidden" />
+                                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#06070a] from-0% via-[#06070a]/90 via-25% to-transparent to-58% lg:hidden" />
+                                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_100%,#06070a_0%,transparent_45%)] opacity-90 lg:hidden" />
+                                <div className="relative z-10 flex min-h-[min(88vh,920px)] flex-col items-center justify-center px-4 py-10 sm:px-6 lg:min-h-0 lg:items-stretch lg:justify-start lg:px-0 lg:py-0">
+                                    <div className="w-full max-w-xl translate-y-[min(5vh,2.5rem)] text-left sm:translate-y-[min(6vh,3rem)] lg:max-w-none lg:translate-y-0">
+                                        <h1 className="text-4xl font-semibold leading-[1.12] tracking-tight text-white [text-shadow:0_2px_20px_rgba(0,0,0,0.85)] sm:text-5xl md:text-7xl md:leading-[1.1] lg:text-[88px] lg:leading-[1.12] lg:[text-shadow:none]">
+                                            足球幸運抽獎
+                                            <span className="mt-2 block bg-gradient-to-r from-[#fff4d6] via-[#d8b36b] to-[#9d7740] bg-clip-text pb-[0.12em] pt-[0.02em] text-transparent [-webkit-background-clip:text] [background-clip:text] sm:mt-3">
+                                                贏取專屬好禮
+                                            </span>
+                                        </h1>
 
-                                <div className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-white/60 backdrop-blur">
-                                    今日參與人數 <span className="ml-2 text-lg font-semibold text-white">23,568</span>
+                                        <p className="mt-5 max-w-xl text-sm leading-7 text-white/95 [text-shadow:0_1px_14px_rgba(0,0,0,0.75)] sm:mt-6 sm:text-base sm:leading-8 md:text-lg lg:text-white/62 lg:[text-shadow:none]">
+                                            高端足球數據體驗頁面，融合抽卡互動與品牌感視覺。點選一張卡片揭曉你的獎勵，完成後即可透過電報聯絡客服領獎。
+                                        </p>
+
+                                        <div className="mt-6 flex flex-wrap items-center gap-3 sm:mt-8 lg:mt-10">
+                                            <Button
+                                                className="h-11 sm:h-12"
+                                                onClick={() => {
+                                                    document.getElementById("draw-section")?.scrollIntoView({ behavior: "smooth" });
+                                                }}
+                                            >
+                                                立即參與
+                                                <ChevronRight className="ml-1 h-4 w-4" />
+                                            </Button>
+
+                                            <div className="rounded-full border border-white/10 bg-black/45 px-4 py-2.5 text-xs text-white/80 shadow-inner backdrop-blur-md sm:px-5 sm:py-3 sm:text-sm sm:text-white/65">
+                                                今日參與人數 <span className="ml-1.5 text-base font-semibold text-white sm:ml-2 sm:text-lg">23,568</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="relative mx-auto flex w-full max-w-[560px] min-w-0 items-center justify-center">
+                        <div className="relative mx-auto hidden w-full max-w-[560px] min-w-0 items-center justify-center lg:flex">
                             <div className="absolute inset-0 rounded-[36px] bg-[radial-gradient(circle_at_center,rgba(216,179,107,0.22),transparent_58%)] blur-3xl" />
                             <div className="relative h-[620px] w-full max-w-full overflow-hidden rounded-[36px] border border-[#d8b36b]/20 bg-[#0a0b10] shadow-[0_24px_90px_rgba(0,0,0,0.55),inset_0_0_0_1px_rgba(255,255,255,0.06)]">
                                 <img
@@ -217,7 +231,7 @@ export default function CardLotteryPage() {
                                 <div className="text-sm text-white/50">每位用戶限選一次，揭曉後即可前往客服領獎</div>
                             </div>
 
-                            <div className="mt-10 grid gap-6 md:grid-cols-3">
+                            <div className="mt-10 grid grid-cols-3 gap-2 sm:gap-4 md:gap-6">
                                 {PRIZES.map((item, index) => {
                                     const isChosen = selected === index;
                                     const isDimmed = selected !== null && selected !== index;
@@ -229,7 +243,7 @@ export default function CardLotteryPage() {
                                             whileHover={!revealed ? { y: -8, scale: 1.01 } : {}}
                                             whileTap={!revealed ? { scale: 0.985 } : {}}
                                             onClick={() => handlePick(index)}
-                                            className={`group relative h-[360px] w-full min-w-0 overflow-hidden rounded-[28px] border text-left transition duration-500 ${
+                                            className={`group relative h-[200px] min-h-0 w-full min-w-0 overflow-hidden rounded-xl border text-left transition duration-500 sm:h-[280px] sm:rounded-2xl md:h-[360px] md:rounded-[28px] ${
                                                 isChosen
                                                     ? "border-[#d8b36b]/70 shadow-[0_0_0_1px_rgba(216,179,107,0.25),0_20px_60px_rgba(216,179,107,0.12)]"
                                                     : "border-white/10"
@@ -238,7 +252,7 @@ export default function CardLotteryPage() {
                                             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02)_18%,rgba(0,0,0,0.35)_100%)]" />
                                             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(216,179,107,0.18),transparent_28%)] opacity-70" />
                                             <div className="absolute inset-0 bg-[#0b0d12]" />
-                                            <div className="absolute inset-[1px] rounded-[27px] bg-[linear-gradient(180deg,#11141b_0%,#090b10_100%)]" />
+                                            <div className="absolute inset-[1px] rounded-[11px] bg-[linear-gradient(180deg,#11141b_0%,#090b10_100%)] sm:rounded-[15px] md:rounded-[27px]" />
                                             <div
                                                 className="absolute inset-0 opacity-[0.18]"
                                                 style={{
@@ -247,27 +261,31 @@ export default function CardLotteryPage() {
                                                     backgroundSize: "20px 20px",
                                                 }}
                                             />
-                                            <div className="absolute left-6 top-6 h-px w-16 bg-gradient-to-r from-[#d8b36b] to-transparent" />
-                                            <div className="absolute right-6 top-6 h-px w-16 bg-gradient-to-l from-[#d8b36b] to-transparent" />
-                                            <div className="absolute bottom-6 left-6 h-px w-16 bg-gradient-to-r from-[#d8b36b] to-transparent" />
-                                            <div className="absolute bottom-6 right-6 h-px w-16 bg-gradient-to-l from-[#d8b36b] to-transparent" />
+                                            <div className="absolute left-2 top-3 h-px w-8 bg-gradient-to-r from-[#d8b36b] to-transparent sm:left-6 sm:top-6 sm:w-16" />
+                                            <div className="absolute right-2 top-3 h-px w-8 bg-gradient-to-l from-[#d8b36b] to-transparent sm:right-6 sm:top-6 sm:w-16" />
+                                            <div className="absolute bottom-3 left-2 h-px w-8 bg-gradient-to-r from-[#d8b36b] to-transparent sm:bottom-6 sm:left-6 sm:w-16" />
+                                            <div className="absolute bottom-3 right-2 h-px w-8 bg-gradient-to-l from-[#d8b36b] to-transparent sm:bottom-6 sm:right-6 sm:w-16" />
 
-                                            <div className="relative z-10 flex h-full flex-col items-center justify-center px-8 text-center">
+                                            <div className="relative z-10 flex h-full flex-col items-center justify-center px-1.5 text-center sm:px-6 md:px-8">
                                                 <motion.div
                                                     animate={
                                                         isChosen && revealed ? { rotateY: 180, scale: 1.02 } : { rotateY: 0, scale: 1 }
                                                     }
                                                     transition={{ duration: 0.55 }}
-                                                    className="mb-8 flex h-32 w-32 items-center justify-center rounded-full border border-[#d8b36b]/20 bg-[radial-gradient(circle_at_30%_30%,rgba(216,179,107,0.38),rgba(24,25,30,0.9)_62%)] shadow-[inset_0_1px_12px_rgba(255,255,255,0.08),0_10px_40px_rgba(0,0,0,0.4)]"
+                                                    className="mb-3 flex h-14 w-14 items-center justify-center rounded-full border border-[#d8b36b]/20 bg-[radial-gradient(circle_at_30%_30%,rgba(216,179,107,0.38),rgba(24,25,30,0.9)_62%)] shadow-[inset_0_1px_12px_rgba(255,255,255,0.08),0_10px_40px_rgba(0,0,0,0.4)] sm:mb-6 sm:h-24 sm:w-24 md:mb-8 md:h-32 md:w-32"
                                                     style={{ transformStyle: "preserve-3d" }}
                                                 >
-                                                    <span className="bg-gradient-to-b from-[#fff7e2] to-[#caa35e] bg-clip-text text-6xl font-semibold text-transparent">
+                                                    <span className="bg-gradient-to-b from-[#fff7e2] to-[#caa35e] bg-clip-text text-2xl font-semibold text-transparent sm:text-5xl md:text-6xl">
                                                         ?
                                                     </span>
                                                 </motion.div>
-                                                <div className="text-3xl font-semibold tracking-tight">{item.label}</div>
-                                                <div className="mt-3 text-xs tracking-[0.2em] text-white/36">神秘獎勵</div>
-                                                <div className="mt-6 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs tracking-[0.15em] text-white/54">
+                                                <div className="text-[11px] font-semibold leading-tight tracking-tight sm:text-lg md:text-3xl">
+                                                    {item.label}
+                                                </div>
+                                                <div className="mt-1 text-[9px] tracking-[0.12em] text-white/36 sm:mt-2 sm:text-xs sm:tracking-[0.2em]">
+                                                    神秘獎勵
+                                                </div>
+                                                <div className="mt-2 max-w-full truncate rounded-full border border-white/10 bg-white/5 px-1.5 py-1 text-[8px] tracking-[0.08em] text-white/54 sm:mt-5 sm:px-3 sm:py-2 sm:text-xs sm:tracking-[0.15em] md:mt-6 md:px-4">
                                                     {revealed && isChosen ? item.tag : "點擊揭曉"}
                                                 </div>
                                             </div>
@@ -322,9 +340,6 @@ export default function CardLotteryPage() {
                                                             <Send className="h-4 w-4" />
                                                             聯絡電報客服領獎
                                                         </a>
-                                                        <Button variant="outline" onClick={resetDraw} className="h-12">
-                                                            重新示意
-                                                        </Button>
                                                     </div>
 
                                                     <div className="mt-8 grid gap-3 text-sm text-white/45 md:grid-cols-3">
