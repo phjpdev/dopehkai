@@ -3,7 +3,7 @@ import { Request, Response } from "express";
 import { Daum, FootyLogic } from "model/footylogic.model";
 import { FootyLogicDetails } from "model/footylogic_details.model";
 import { AwayTeam, HomeTeam, RecentMatch } from "model/footylogic_last_games";
-import { Match, Predictions as MatchPredictions } from "model/match.model";
+import { Match, Predictions as MatchPredictions, ResultIA } from "model/match.model";
 import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, writeBatch } from '../database/db'
 import { db } from "../firebase/firebase";
 import Global from "../ultis/global.ultis";
@@ -1080,28 +1080,39 @@ class MatchController {
         }
     }
 
-    static async analyzeMatch(req: Request, res: Response) {
-        const { id } = req.params;
-
+    /**
+     * Load match, run Gemini when picks incomplete, persist. Used by HTTP analyze and admin past-results.
+     */
+    static async ensureGeminiAnalysisForMatch(matchId: string): Promise<
+        | { ok: true; ia: ResultIA }
+        | { ok: false; reason: "not_found" | "no_predictions" | "error"; message?: string }
+    > {
         try {
-            const matchRef = doc(db, Tables.matches, id);
-            const matchSnap = await getDoc(matchRef)
+            const matchRef = doc(db, Tables.matches, matchId);
+            const matchSnap = await getDoc(matchRef);
             if (!matchSnap.exists()) {
-                return res.status(404).json({ error: 'Match not found' });
+                return { ok: false, reason: "not_found" };
             }
             let matchData = matchSnap.data() as Match;
             if (!matchData.homeForm) matchData.homeForm = "";
             if (!matchData.awayForm) matchData.awayForm = "";
 
-            // Return cached only when all 4 picks are present
             const cachedPicks = matchData.ia?.picks;
-            const hasCompletePicks = cachedPicks?.goals?.bestPick && cachedPicks?.had?.bestPick && cachedPicks?.handicap?.bestPick && cachedPicks?.corners?.bestPick;
-            if (matchData.ia && typeof matchData.ia.home === "number" && typeof matchData.ia.away === "number" && hasCompletePicks) {
-                return res.json(matchData.ia);
+            const hasCompletePicks =
+                cachedPicks?.goals?.bestPick &&
+                cachedPicks?.had?.bestPick &&
+                cachedPicks?.handicap?.bestPick &&
+                cachedPicks?.corners?.bestPick;
+            if (
+                matchData.ia &&
+                typeof matchData.ia.home === "number" &&
+                typeof matchData.ia.away === "number" &&
+                hasCompletePicks
+            ) {
+                return { ok: true, ia: matchData.ia as ResultIA };
             }
 
-            // HKJC enrichment so HK-only fixtures still get 1X2 / HIL / handicap context for Gemini
-            const hkjcMatch = await ApiHKJCMatchById(id);
+            const hkjcMatch = await ApiHKJCMatchById(matchId);
             if (hkjcMatch) {
                 const markets = extractHKJCMarkets(hkjcMatch);
                 if (markets.hadHomePct != null) matchData.hadHomePct = markets.hadHomePct;
@@ -1142,10 +1153,11 @@ class MatchController {
             }
 
             if (homeWinRate == null || awayWinRate == null) {
-                return res.status(404).json({
-                    error: "predictions not found",
+                return {
+                    ok: false,
+                    reason: "no_predictions",
                     message: "No ML predictions, HKJC 1X2 implied %, or stored IA win rates for this match.",
-                });
+                };
             }
 
             if (!matchData.predictions) {
@@ -1165,7 +1177,13 @@ class MatchController {
 
             let playersInjured = { home: [] as any[], away: [] as any[] };
             if (matchData.fixture_id && matchData.league_id && matchData.homeTeamId && matchData.awayTeamId && matchData.kickOff) {
-                playersInjured = await ApiTopScoreInjured(matchData.fixture_id, matchData.league_id, matchData.kickOff.split("-")[0], matchData.homeTeamId, matchData.awayTeamId);
+                playersInjured = await ApiTopScoreInjured(
+                    matchData.fixture_id,
+                    matchData.league_id,
+                    matchData.kickOff.split("-")[0],
+                    matchData.homeTeamId,
+                    matchData.awayTeamId
+                );
             }
             const resultIa = await IaProbality(matchData, playersInjured);
             if (resultIa) {
@@ -1182,19 +1200,195 @@ class MatchController {
                     picks: resultIa.picks,
                 };
             } else {
-                matchData.ia = CalculationProbality(playersInjured, homeWinRate, awayWinRate, matchData.homeForm.split(","), matchData.awayForm.split(","));
+                matchData.ia = CalculationProbality(
+                    playersInjured,
+                    homeWinRate,
+                    awayWinRate,
+                    matchData.homeForm.split(","),
+                    matchData.awayForm.split(",")
+                );
             }
             await setDoc(matchRef, matchData, { merge: true });
-            await cacheDel(CacheKeys.matchDetail(id));
+            await cacheDel(CacheKeys.matchDetail(matchId));
             await cacheDel(CacheKeys.matchesList(false));
             await cacheDel(CacheKeys.matchesList(true));
-            const analysisRef = doc(db, Tables.analysis, id);
-            await setDoc(analysisRef, { matchId: id, ...matchData.ia }, { merge: true });
-            return res.json(matchData.ia);
+            const analysisRef = doc(db, Tables.analysis, matchId);
+            await setDoc(analysisRef, { matchId, ...matchData.ia }, { merge: true });
+            return { ok: true, ia: matchData.ia as ResultIA };
+        } catch (e: any) {
+            console.error("[ensureGeminiAnalysisForMatch]", matchId, e?.message || e);
+            return { ok: false, reason: "error", message: e?.message || String(e) };
+        }
+    }
 
+    static async analyzeMatch(req: Request, res: Response) {
+        const { id } = req.params;
+
+        try {
+            const out = await MatchController.ensureGeminiAnalysisForMatch(id);
+            if (!out.ok) {
+                if (out.reason === "not_found") {
+                    return res.status(404).json({ error: "Match not found" });
+                }
+                if (out.reason === "no_predictions") {
+                    return res.status(404).json({
+                        error: "predictions not found",
+                        message: out.message || "No ML predictions, HKJC 1X2 implied %, or stored IA win rates for this match.",
+                    });
+                }
+                return res.status(500).json({ error: "Internal server error", message: out.message });
+            }
+            return res.json(out.ia);
         } catch (error: any) {
-            console.error('Error analyzing match:', error.response?.data || error.message);
-            return res.status(500).json({ error: 'Internal server error' });
+            console.error("Error analyzing match:", error.response?.data || error.message);
+            return res.status(500).json({ error: "Internal server error" });
+        }
+    }
+
+    /** Admin/subadmin: matches from the previous two calendar days (HKT) with results + IA; fills missing IA via Gemini. */
+    static async getPastMatchResults(req: Request, res: Response) {
+        try {
+            const pad = (n: number) => String(n).padStart(2, "0");
+            const toHktYmd = (d: Date) =>
+                d.toLocaleDateString("en-CA", { timeZone: "Asia/Hong_Kong", year: "numeric", month: "2-digit", day: "2-digit" });
+            const ymdAddDaysHkt = (ymd: string, delta: number): string => {
+                const [y, m, day] = ymd.split("-").map(Number);
+                const anchor = new Date(`${y}-${pad(m)}-${pad(day)}T12:00:00+08:00`);
+                anchor.setTime(anchor.getTime() + delta * 86400000);
+                return toHktYmd(anchor);
+            };
+            const startOfHktYmdMs = (ymd: string) => {
+                const [y, m, day] = ymd.split("-").map(Number);
+                return new Date(`${y}-${pad(m)}-${pad(day)}T00:00:00+08:00`).getTime();
+            };
+            const endOfHktYmdMs = (ymd: string) => {
+                const [y, m, day] = ymd.split("-").map(Number);
+                return new Date(`${y}-${pad(m)}-${pad(day)}T23:59:59.999+08:00`).getTime();
+            };
+
+            const todayHkt = toHktYmd(new Date());
+            const startYmd = ymdAddDaysHkt(todayHkt, -2);
+            const endYmd = ymdAddDaysHkt(todayHkt, -1);
+            const windowStartMs = startOfHktYmdMs(startYmd);
+            const windowEndMs = endOfHktYmdMs(endYmd);
+
+            const kickOffToMs = (kickOff: string): number | null => {
+                try {
+                    if (!kickOff) return null;
+                    if (kickOff.includes("T")) {
+                        const d = new Date(kickOff);
+                        return isNaN(d.getTime()) ? null : d.getTime();
+                    }
+                    const [dp, tp] = kickOff.split(" ");
+                    if (!dp) return null;
+                    const time = tp && tp.length >= 5 ? tp.slice(0, 5) : "12:00";
+                    const d = new Date(`${dp}T${time}:00+08:00`);
+                    return isNaN(d.getTime()) ? null : d.getTime();
+                } catch {
+                    return null;
+                }
+            };
+
+            const footyById: Record<string, { outcomeName?: string; matchOutcome?: string }> = {};
+            try {
+                const gamesRes = await API.GET(Global.footylogicGames);
+                if (gamesRes.status === 200 && gamesRes.data?.data) {
+                    for (const daum of gamesRes.data.data as Daum[]) {
+                        for (const ev of daum.events || []) {
+                            const ms = kickOffToMs(ev.kickOff);
+                            if (ms == null || ms < windowStartMs || ms > windowEndMs) continue;
+                            footyById[ev.eventId] = {
+                                outcomeName: ev.outcomeName,
+                                matchOutcome: ev.matchOutcome,
+                            };
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn("[getPastMatchResults] footylogicGames failed", e);
+            }
+
+            const matchesCol = collection(db, Tables.matches);
+            const snapshot = await getDocs(matchesCol);
+            type Row = {
+                id: string;
+                kickOff: string;
+                homeTeamName: string;
+                awayTeamName: string;
+                competitionName?: string;
+                outcomeName?: string;
+                matchOutcome?: string;
+                ia?: ResultIA;
+                geminiStatus: "cached" | "refreshed" | "skipped" | "failed";
+                geminiMessage?: string;
+            };
+            const rows: Row[] = [];
+
+            for (const docSnap of snapshot.docs) {
+                const data = docSnap.data() as Match;
+                if (!data.kickOff) continue;
+                const ms = kickOffToMs(data.kickOff);
+                if (ms == null || ms < windowStartMs || ms > windowEndMs) continue;
+
+                const id = docSnap.id;
+                const footy = footyById[id];
+                const outcomeName = data.outcomeName ?? footy?.outcomeName ?? "";
+                const matchOutcome = data.matchOutcome ?? footy?.matchOutcome ?? "";
+
+                const cachedPicks = data.ia?.picks;
+                const hasCompletePicks =
+                    cachedPicks?.goals?.bestPick &&
+                    cachedPicks?.had?.bestPick &&
+                    cachedPicks?.handicap?.bestPick &&
+                    cachedPicks?.corners?.bestPick;
+
+                let geminiStatus: Row["geminiStatus"] = "cached";
+                let geminiMessage: string | undefined;
+                let ia = data.ia as ResultIA | undefined;
+
+                if (!hasCompletePicks) {
+                    const out = await MatchController.ensureGeminiAnalysisForMatch(id);
+                    if (out.ok) {
+                        geminiStatus = "refreshed";
+                        ia = out.ia;
+                    } else {
+                        if (out.reason === "no_predictions" || out.reason === "not_found") {
+                            geminiStatus = "skipped";
+                            geminiMessage = out.message || out.reason;
+                        } else {
+                            geminiStatus = "failed";
+                            geminiMessage = out.message || out.reason;
+                        }
+                    }
+                }
+
+                rows.push({
+                    id,
+                    kickOff: data.kickOff,
+                    homeTeamName: data.homeTeamName ?? "",
+                    awayTeamName: data.awayTeamName ?? "",
+                    competitionName: data.competitionName,
+                    outcomeName: outcomeName || undefined,
+                    matchOutcome: matchOutcome || undefined,
+                    ia,
+                    geminiStatus,
+                    geminiMessage,
+                });
+            }
+
+            rows.sort((a, b) => kickOffToMs(b.kickOff)! - kickOffToMs(a.kickOff)!);
+
+            return res.json({
+                timezone: "Asia/Hong_Kong",
+                window: { start: startYmd, end: endYmd },
+                matches: rows,
+            });
+        } catch (error: any) {
+            console.error("[getPastMatchResults]", error);
+            return res.status(500).json({
+                error: "Failed to load past matches",
+                message: error instanceof Error ? error.message : String(error),
+            });
         }
     }
 

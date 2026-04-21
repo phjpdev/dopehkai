@@ -38,6 +38,7 @@ function AppBarComponent() {
         menuItems.push({ label: "記錄2", ur: "/admin/records2", path: () => navigate("/admin/records2") });
         menuItems.push({ label: t("admins"), ur: "/admin/admins", path: () => navigate("/admin/admins") });
         menuItems.push({ label: "分析", ur: "/admin/analytics", path: () => navigate("/admin/analytics") });
+        menuItems.push({ label: "過去兩日賽果", ur: "/admin/past-matches", path: () => navigate("/admin/past-matches") });
     }
 
     const scrollToSection = (id: any) => {

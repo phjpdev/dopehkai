@@ -1,4 +1,5 @@
 import MatchController from "../controllers/match.controller";
+import authenticateAdmin from "../middleware/authenticateAdmin";
 import { Router } from "express";
 
 const matchRouter = Router();
@@ -40,6 +41,11 @@ matchRouter.get('/match-data', async (req, res) => {
 
 matchRouter.get('/analysis', async (req, res) => {
     await MatchController.getAllMatchAnalysis(req, res);
+});
+
+/** Admin/subadmin: past two calendar days (HKT) of matches + Gemini IA when picks missing */
+matchRouter.get('/past-results', authenticateAdmin, async (req, res) => {
+    await MatchController.getPastMatchResults(req, res);
 });
 
 matchRouter.get('/match-data/:id', async (req, res) => {

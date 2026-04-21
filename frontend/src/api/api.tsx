@@ -185,13 +185,14 @@ export const API = {
         return response;
     },
 
-    async GET(url: string, headers?: any): Promise<AxiosResponse<any, any>> {
+    async GET(url: string, headers?: any, timeoutMs?: number): Promise<AxiosResponse<any, any>> {
         const token = await this.getToken()
         const _headers = headers ?? {};
+        const timeout = typeof timeoutMs === "number" && timeoutMs > 0 ? timeoutMs : 30000;
         var response: any;
         await axios.get(url, {
             withCredentials: true,
-            timeout: 30000, // 30 seconds timeout
+            timeout,
             headers: {
                 'Content-type': 'application/json; charset=UTF-8',
                 'Authorization': 'Bearer ' + token,

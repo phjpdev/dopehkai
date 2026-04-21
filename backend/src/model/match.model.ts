@@ -15,6 +15,8 @@ export interface Match {
     kickOffDate: string
     competitionId: number
     eventId: string
+    /** FootyLogic / list: 1X2 result label */
+    outcomeName?: string
     matchOutcome: string
     homeForm: string
     awayForm: string
