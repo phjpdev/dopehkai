@@ -75,7 +75,7 @@ export default function CardLotteryPage() {
 
     const [selected, setSelected] = useState<number | null>(null);
     const [revealed, setRevealed] = useState(false);
-    const [participantCount, setParticipantCount] = useState(0);
+    const [participantCount, setParticipantCount] = useState(11_240);
     const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const prizeResultRef = useRef<HTMLDivElement | null>(null);
 
