@@ -76,6 +76,7 @@ export default function CardLotteryPage() {
     const [selected, setSelected] = useState<number | null>(null);
     const [revealed, setRevealed] = useState(false);
     const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const prizeResultRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -91,6 +92,14 @@ export default function CardLotteryPage() {
         if (selected === null) return null;
         return PRIZES[selected];
     }, [selected]);
+
+    useEffect(() => {
+        if (!revealed || selectedPrize === null) return;
+        const t = window.setTimeout(() => {
+            prizeResultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 200);
+        return () => window.clearTimeout(t);
+    }, [revealed, selectedPrize]);
 
     const handlePick = (index: number) => {
         if (revealed) return;
@@ -110,7 +119,7 @@ export default function CardLotteryPage() {
                 <BackgroundDecor />
 
                 <main className="relative z-10 mx-auto max-w-7xl min-w-0 px-6 pb-20 lg:px-10">
-                    <section className="grid items-start gap-10 pt-0 pb-8 lg:min-h-[80vh] lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-10">
+                    <section className="grid items-start gap-6 pt-0 pb-2 lg:min-h-[80vh] lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-10 lg:pb-8 lg:py-10">
                         <div className="max-w-2xl min-w-0">
                             <div className="relative flex min-h-0 flex-col overflow-hidden rounded-[28px] bg-[#06070a] lg:block lg:rounded-none lg:bg-transparent">
                                 <div
@@ -127,7 +136,7 @@ export default function CardLotteryPage() {
                                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#06070a] from-0% via-transparent via-20% to-transparent to-38% lg:hidden" />
                                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#06070a] from-0% via-[#06070a]/90 via-25% to-transparent to-58% lg:hidden" />
                                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_100%,#06070a_0%,transparent_45%)] opacity-90 lg:hidden" />
-                                <div className="relative z-10 flex min-h-0 flex-col items-center justify-center px-4 py-8 sm:px-6 sm:py-10 lg:items-stretch lg:justify-start lg:px-0 lg:py-0">
+                                <div className="relative z-10 flex min-h-0 flex-col items-center justify-center px-4 py-6 sm:px-6 sm:py-8 lg:items-stretch lg:justify-start lg:px-0 lg:py-0">
                                     <div className="w-full max-w-xl text-left lg:max-w-none">
                                         <h1 className="text-4xl font-semibold leading-[1.12] tracking-tight text-white [text-shadow:0_2px_20px_rgba(0,0,0,0.85)] sm:text-5xl md:text-7xl md:leading-[1.1] lg:text-[88px] lg:leading-[1.12] lg:[text-shadow:none]">
                                             足球幸運抽獎
@@ -193,7 +202,7 @@ export default function CardLotteryPage() {
                         </div>
                     </section>
 
-                    <section id="draw-section" className="pt-6">
+                    <section id="draw-section" className="pt-2 lg:pt-6">
                         <div className="mx-auto max-w-6xl min-w-0 rounded-[32px] border border-white/10 bg-white/[0.03] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl md:p-10">
                             <div className="flex flex-col items-center justify-between gap-4 border-b border-white/10 pb-8 text-center md:flex-row md:text-left">
                                 <div>
@@ -269,11 +278,12 @@ export default function CardLotteryPage() {
                             <AnimatePresence>
                                 {revealed && selectedPrize && (
                                     <motion.div
+                                        ref={prizeResultRef}
                                         initial={{ opacity: 0, y: 24 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         exit={{ opacity: 0, y: 24 }}
                                         transition={{ duration: 0.45 }}
-                                        className="mt-10"
+                                        className="mt-8 scroll-mt-24 sm:scroll-mt-28"
                                     >
                                         <Card className="overflow-hidden rounded-[32px] border border-[#d8b36b]/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] shadow-[0_25px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl">
                                             <CardContent className="grid gap-0 p-0 lg:grid-cols-[0.9fr_1.1fr]">
