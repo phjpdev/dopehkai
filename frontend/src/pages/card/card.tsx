@@ -13,9 +13,9 @@ import { useConfig } from "../../hooks/useConfig";
 import AppAssets from "../../ultis/assets";
 
 const PRIZES = [
-    { id: 1, label: "神秘獎勵 甲", reward: "7 日貴賓體驗", tag: "限時體驗" },
-    { id: 2, label: "神秘獎勵 乙", reward: "現金獎勵 500 元", tag: "高價值獎勵" },
-    { id: 3, label: "神秘獎勵 丙", reward: "88 折專屬優惠", tag: "立即可用" },
+    { id: 1, label: "$500上$10萬機會一次", reward: "$500上$10萬機會一次", tag: "限時體驗" },
+    { id: 2, label: "$500 系統優惠卷", reward: "$500 系統優惠卷", tag: "系統回贈" },
+    { id: 3, label: "99%協議場次一次", reward: "99%協議場次一次", tag: "協議場次" },
 ];
 
 function Card({ className = "", children, ...rest }: HTMLAttributes<HTMLDivElement>) {
@@ -75,6 +75,7 @@ export default function CardLotteryPage() {
 
     const [selected, setSelected] = useState<number | null>(null);
     const [revealed, setRevealed] = useState(false);
+    const [participantCount, setParticipantCount] = useState(0);
     const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const prizeResultRef = useRef<HTMLDivElement | null>(null);
 
@@ -104,6 +105,7 @@ export default function CardLotteryPage() {
     const handlePick = (index: number) => {
         if (revealed) return;
         if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+        setParticipantCount((n) => n + 1);
         setSelected(index);
         revealTimerRef.current = setTimeout(() => {
             setRevealed(true);
@@ -119,7 +121,7 @@ export default function CardLotteryPage() {
                 <BackgroundDecor />
 
                 <main className="relative z-10 mx-auto max-w-7xl min-w-0 px-6 pb-20 lg:px-10">
-                    <section className="grid items-start gap-6 pt-0 pb-2 lg:min-h-[80vh] lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-10 lg:pb-8 lg:py-10">
+                    <section className="grid items-start gap-4 pt-0 pb-1 lg:min-h-[80vh] lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-8 lg:pb-6 lg:py-8">
                         <div className="max-w-2xl min-w-0">
                             <div className="relative flex min-h-0 flex-col overflow-hidden rounded-[28px] bg-[#06070a] lg:block lg:rounded-none lg:bg-transparent">
                                 <div
@@ -139,14 +141,16 @@ export default function CardLotteryPage() {
                                 <div className="relative z-10 flex min-h-0 flex-col items-center justify-center px-4 py-6 sm:px-6 sm:py-8 lg:items-stretch lg:justify-start lg:px-0 lg:py-0">
                                     <div className="w-full max-w-xl text-left lg:max-w-none">
                                         <h1 className="text-4xl font-semibold leading-[1.12] tracking-tight text-white [text-shadow:0_2px_20px_rgba(0,0,0,0.85)] sm:text-5xl md:text-7xl md:leading-[1.1] lg:text-[88px] lg:leading-[1.12] lg:[text-shadow:none]">
-                                            足球幸運抽獎
+                                            Dope AI迎新抽獎
                                             <span className="mt-2 block bg-gradient-to-r from-[#fff4d6] via-[#d8b36b] to-[#9d7740] bg-clip-text pb-[0.12em] pt-[0.02em] text-transparent [-webkit-background-clip:text] [background-clip:text] sm:mt-3">
-                                                贏取專屬好禮
+                                                領取屬於你既專屬大禮
                                             </span>
                                         </h1>
 
                                         <p className="mt-5 max-w-xl text-sm leading-7 text-white/95 [text-shadow:0_1px_14px_rgba(0,0,0,0.75)] sm:mt-6 sm:text-base sm:leading-8 md:text-lg lg:text-white/62 lg:[text-shadow:none]">
-                                            高端足球數據體驗頁面，融合抽卡互動與品牌感視覺。點選一張卡片揭曉你的獎勵，完成後即可透過電報聯絡客服領獎。
+                                            幫你改變人生機會黎啦
+                                            <br />
+                                            今晚幫你$500上$10萬
                                         </p>
 
                                         <div className="mt-6 flex flex-wrap items-center gap-3 sm:mt-8 lg:mt-10">
@@ -161,7 +165,10 @@ export default function CardLotteryPage() {
                                             </Button>
 
                                             <div className="rounded-full border border-white/10 bg-black/45 px-4 py-2.5 text-xs text-white/80 shadow-inner backdrop-blur-md sm:px-5 sm:py-3 sm:text-sm sm:text-white/65">
-                                                今日參與人數 <span className="ml-1.5 text-base font-semibold text-white sm:ml-2 sm:text-lg">23,568</span>
+                                                參與人數{" "}
+                                                <span className="ml-1.5 text-base font-semibold text-white tabular-nums sm:ml-2 sm:text-lg">
+                                                    {participantCount.toLocaleString("zh-HK")}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -202,9 +209,9 @@ export default function CardLotteryPage() {
                         </div>
                     </section>
 
-                    <section id="draw-section" className="pt-2 lg:pt-6">
+                    <section id="draw-section" className="pt-0 lg:pt-3">
                         <div className="mx-auto max-w-6xl min-w-0 rounded-[32px] border border-white/10 bg-white/[0.03] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl md:p-10">
-                            <div className="flex flex-col items-center justify-between gap-4 border-b border-white/10 pb-8 text-center md:flex-row md:text-left">
+                            <div className="flex flex-col items-center justify-between gap-3 border-b border-white/10 pb-4 text-center md:flex-row md:text-left">
                                 <div>
                                     <div className="text-xs tracking-[0.2em] text-[#d8b36b]">卡片選擇</div>
                                     <h2 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">選擇一張卡片</h2>
@@ -212,7 +219,7 @@ export default function CardLotteryPage() {
                                 <div className="text-sm text-white/50">每位用戶限選一次，揭曉後即可前往客服領獎</div>
                             </div>
 
-                            <div className="mt-10 grid grid-cols-3 gap-2 sm:gap-4 md:gap-6">
+                            <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-4 md:gap-6 sm:mt-5 md:mt-6">
                                 {PRIZES.map((item, index) => {
                                     const isChosen = selected === index;
                                     const isDimmed = selected !== null && selected !== index;
@@ -260,11 +267,8 @@ export default function CardLotteryPage() {
                                                         ?
                                                     </span>
                                                 </motion.div>
-                                                <div className="text-[11px] font-semibold leading-tight tracking-tight sm:text-lg md:text-3xl">
+                                                <div className="text-[10px] font-semibold leading-snug tracking-tight sm:text-base md:text-2xl">
                                                     {item.label}
-                                                </div>
-                                                <div className="mt-1 text-[9px] tracking-[0.12em] text-white/36 sm:mt-2 sm:text-xs sm:tracking-[0.2em]">
-                                                    神秘獎勵
                                                 </div>
                                                 <div className="mt-2 max-w-full truncate rounded-full border border-white/10 bg-white/5 px-1.5 py-1 text-[8px] tracking-[0.08em] text-white/54 sm:mt-5 sm:px-3 sm:py-2 sm:text-xs sm:tracking-[0.15em] md:mt-6 md:px-4">
                                                     {revealed && isChosen ? item.tag : "點擊揭曉"}
@@ -297,7 +301,7 @@ export default function CardLotteryPage() {
                                                     <div className="absolute bottom-8 left-8 right-8">
                                                         <div className="mb-3 text-xs tracking-[0.2em] text-[#d8b36b]">恭喜獲獎</div>
                                                         <div className="text-4xl font-semibold leading-tight">恭喜你抽中了</div>
-                                                        <div className="mt-3 text-white/60">完成抽獎後，點擊下方按鈕前往電報聯絡客服。</div>
+                                                        <div className="mt-3 text-white/60">完成抽獎後，點擊下方按鈕前往 Telegram 聯絡客服。</div>
                                                     </div>
                                                 </div>
 
@@ -309,7 +313,7 @@ export default function CardLotteryPage() {
                                                         {selectedPrize.reward}
                                                     </h3>
                                                     <p className="mt-5 max-w-xl text-base leading-8 text-white/62">
-                                                        您的抽獎結果已揭曉。請截圖保存本頁畫面，並透過電報聯絡客服完成獎勵確認與領取流程。
+                                                        您的抽獎結果已揭曉。請截圖保存本頁畫面，並透過 Telegram 聯絡客服完成獎勵確認與領取流程。
                                                     </p>
 
                                                     <div className="mt-8 flex flex-wrap gap-4">
@@ -320,7 +324,7 @@ export default function CardLotteryPage() {
                                                             className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-[#d8b36b]/20 bg-[#d8b36b] px-7 text-sm font-medium text-black shadow-[0_10px_36px_rgba(216,179,107,0.24)] transition hover:bg-[#e5c382]"
                                                         >
                                                             <Send className="h-4 w-4" />
-                                                            聯絡電報客服領獎
+                                                            聯絡 Telegram 客服領獎
                                                         </a>
                                                     </div>
 
@@ -343,7 +347,7 @@ export default function CardLotteryPage() {
                             { icon: Gift, title: "多種大獎", text: "體驗、現金與專屬優惠" },
                             { icon: ShieldCheck, title: "公平公正", text: "流程透明，互動明確" },
                             { icon: Zap, title: "快速領獎", text: "揭曉後即可聯絡客服" },
-                            { icon: Headphones, title: "專人客服", text: "電報即時對接" },
+                            { icon: Headphones, title: "專人客服", text: "Telegram 即時對接" },
                         ].map((item) => {
                             const Icon = item.icon;
                             return (
@@ -362,7 +366,7 @@ export default function CardLotteryPage() {
                     </section>
 
                     <footer className="pb-10 pt-10 text-center text-sm text-white/35">
-                        本活動與電報平臺無關，參與即表示同意活動規則。
+                        本活動與 Telegram 平臺無關，參與即表示同意活動規則。
                     </footer>
                 </main>
             </div>
