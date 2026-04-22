@@ -5,10 +5,9 @@ import {
     useRef,
     type ButtonHTMLAttributes,
     type HTMLAttributes,
-    type ReactNode,
 } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, ShieldCheck, Zap, Headphones, Gift, Send, ChevronRight } from "lucide-react";
+import { ShieldCheck, Zap, Headphones, Gift, Send, ChevronRight } from "lucide-react";
 import AppBarComponent from "../../components/appBar";
 import { useConfig } from "../../hooks/useConfig";
 import AppAssets from "../../ultis/assets";
@@ -18,10 +17,6 @@ const PRIZES = [
     { id: 2, label: "神秘獎勵 乙", reward: "現金獎勵 500 元", tag: "高價值獎勵" },
     { id: 3, label: "神秘獎勵 丙", reward: "88 折專屬優惠", tag: "立即可用" },
 ];
-
-function Badge({ className = "", children }: { className?: string; children: ReactNode }) {
-    return <span className={className}>{children}</span>;
-}
 
 function Card({ className = "", children, ...rest }: HTMLAttributes<HTMLDivElement>) {
     return (
@@ -114,28 +109,10 @@ export default function CardLotteryPage() {
             <div className="relative isolate pt-24 md:pt-28">
                 <BackgroundDecor />
 
-                <header className="relative z-10 mx-auto flex w-full max-w-7xl min-w-0 items-center justify-between px-6 py-6 lg:px-10">
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#c9a45c]/40 bg-white/5 backdrop-blur">
-                            <Trophy className="h-5 w-5 text-[#d8b36b]" />
-                        </div>
-                        <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
-                            <div className="min-w-0">
-                                <div className="text-xl font-semibold tracking-[0.12em] text-white/95">道普</div>
-                                <div className="mt-0.5 text-xs tracking-[0.08em] text-white/45">足球智慧分析</div>
-                            </div>
-                            <Badge className="shrink-0 self-center rounded-full border border-[#c9a45c]/25 bg-white/5 px-3 py-1 text-[10px] font-medium tracking-[0.12em] text-[#d8b36b] backdrop-blur sm:text-xs sm:tracking-[0.2em]">
-                                尊榮體驗
-                            </Badge>
-                        </div>
-                    </div>
-
-                </header>
-
                 <main className="relative z-10 mx-auto max-w-7xl min-w-0 px-6 pb-20 lg:px-10">
-                    <section className="grid items-start gap-10 py-8 lg:min-h-[80vh] lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-10">
+                    <section className="grid items-start gap-10 pt-0 pb-8 lg:min-h-[80vh] lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-10">
                         <div className="max-w-2xl min-w-0">
-                            <div className="relative flex min-h-[min(88vh,920px)] flex-col overflow-hidden rounded-[28px] bg-[#06070a] lg:block lg:min-h-0 lg:rounded-none lg:bg-transparent">
+                            <div className="relative flex min-h-0 flex-col overflow-hidden rounded-[28px] bg-[#06070a] lg:block lg:rounded-none lg:bg-transparent">
                                 <div
                                     className="pointer-events-none absolute inset-0 scale-[1.08] bg-[#06070a] lg:hidden"
                                     style={{
@@ -150,8 +127,8 @@ export default function CardLotteryPage() {
                                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#06070a] from-0% via-transparent via-20% to-transparent to-38% lg:hidden" />
                                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#06070a] from-0% via-[#06070a]/90 via-25% to-transparent to-58% lg:hidden" />
                                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_100%,#06070a_0%,transparent_45%)] opacity-90 lg:hidden" />
-                                <div className="relative z-10 flex min-h-[min(88vh,920px)] flex-col items-center justify-center px-4 py-10 sm:px-6 lg:min-h-0 lg:items-stretch lg:justify-start lg:px-0 lg:py-0">
-                                    <div className="w-full max-w-xl translate-y-[min(5vh,2.5rem)] text-left sm:translate-y-[min(6vh,3rem)] lg:max-w-none lg:translate-y-0">
+                                <div className="relative z-10 flex min-h-0 flex-col items-center justify-center px-4 py-8 sm:px-6 sm:py-10 lg:items-stretch lg:justify-start lg:px-0 lg:py-0">
+                                    <div className="w-full max-w-xl text-left lg:max-w-none">
                                         <h1 className="text-4xl font-semibold leading-[1.12] tracking-tight text-white [text-shadow:0_2px_20px_rgba(0,0,0,0.85)] sm:text-5xl md:text-7xl md:leading-[1.1] lg:text-[88px] lg:leading-[1.12] lg:[text-shadow:none]">
                                             足球幸運抽獎
                                             <span className="mt-2 block bg-gradient-to-r from-[#fff4d6] via-[#d8b36b] to-[#9d7740] bg-clip-text pb-[0.12em] pt-[0.02em] text-transparent [-webkit-background-clip:text] [background-clip:text] sm:mt-3">
