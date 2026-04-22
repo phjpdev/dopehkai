@@ -1,4 +1,4 @@
-// Jenkinsfile for DopeHKAI
+// Jenkinsfile for DopeHKAI Test
 pipeline {
     agent any
 
