@@ -13,9 +13,9 @@ import { useConfig } from "../../hooks/useConfig";
 import AppAssets from "../../ultis/assets";
 
 const PRIZES = [
-    { id: 1, label: "神秘獎勵A", reward: "$500上$10萬機會一次", tag: "限時體驗" },
-    { id: 2, label: "神秘獎勵B", reward: "$500 系統優惠卷", tag: "系統回贈" },
-    { id: 3, label: "神秘獎勵C", reward: "99%協議場次一次", tag: "協議場次" },
+    { id: 1, label: "神秘獎勵A", reward: "$500系統優惠券", tag: "限時體驗" },
+    { id: 2, label: "神秘獎勵B", reward: "$800 系統優惠券", tag: "系統回贈" },
+    { id: 3, label: "神秘獎勵C", reward: "$3888 永久會員", tag: "協議場次" },
 ];
 
 function Card({ className = "", children, ...rest }: HTMLAttributes<HTMLDivElement>) {
