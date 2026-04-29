@@ -49,12 +49,11 @@ export async function ApiHKJCMatchById(matchId: string): Promise<HKJC | null> {
     }
 }
 
-/** Match list for website/sync: HDC only = same as HKJC handicap page (e.g. 32 matches, 26th/27th). */
+/** Match list for website/sync — must match HKJC’s broad listings (e.g. HAD), not handicap-only: `fbOddsTypesM` filters which fixtures are returned. */
 export const ApiHKJCMatchList = async (): Promise<HKJC[]> => {
     try {
-        console.log("[ApiHKJCMatchList] Fetching match list (HDC)");
-        const matches = await queryHKJC(["HDC"]);
-        console.log("[ApiHKJCMatchList] Received", matches.length, "matches");
+        const matches = await fetchHKJCMatchesMerged();
+        console.log("[ApiHKJCMatchList] Merged list:", matches.length, "matches");
         return matches;
     } catch (error) {
         console.error("[ApiHKJCMatchList] Error:", error);
@@ -62,7 +61,8 @@ export const ApiHKJCMatchList = async (): Promise<HKJC[]> => {
     }
 };
 
-export const ApiHKJC = async (): Promise<HKJC[]> => {
+/** Parallel odds-type queries merged by match id (HKJC returns different fixture sets per pool type). */
+async function fetchHKJCMatchesMerged(): Promise<HKJC[]> {
     try {
         console.log("[ApiHKJC] Fetching all matches from HKJC API");
         
@@ -137,7 +137,10 @@ export const ApiHKJC = async (): Promise<HKJC[]> => {
         console.error("[ApiHKJC] Error fetching matches:", error);
         return [];
     }
-};
+}
+
+/** Full HKJC fixture set with merged pools (analysis worker, results sync). */
+export const ApiHKJC = async (): Promise<HKJC[]> => fetchHKJCMatchesMerged();
 
 const base = {
     "query": "query matchList($startIndex: Int, $endIndex: Int,$startDate: String, $endDate: String, $matchIds: [String], $tournIds: [String], $fbOddsTypes: [FBOddsType]!, $fbOddsTypesM: [FBOddsType]!, $inplayOnly: Boolean, $featuredMatchesOnly: Boolean, $frontEndIds: [String], $earlySettlementOnly: Boolean, $showAllMatch: Boolean) {\n        matches(startIndex: $startIndex,endIndex: $endIndex, startDate: $startDate, endDate: $endDate, matchIds: $matchIds, tournIds: $tournIds, fbOddsTypes: $fbOddsTypesM, inplayOnly: $inplayOnly, featuredMatchesOnly: $featuredMatchesOnly, frontEndIds: $frontEndIds, earlySettlementOnly: $earlySettlementOnly, showAllMatch: $showAllMatch) {\n          id\n          frontEndId\n          matchDate\n          kickOffTime\n          status\n          updateAt\n          sequence\n          esIndicatorEnabled\n          homeTeam {\n            id\n            name_en\n            name_ch\n          }\n          awayTeam {\n            id\n            name_en\n            name_ch\n          }\n          tournament {\n            id\n            frontEndId\n            nameProfileId\n            isInteractiveServiceAvailable\n            code\n            name_en\n            name_ch\n          }\n          isInteractiveServiceAvailable\n          inplayDelay\n          venue {\n            code\n            name_en\n            name_ch\n          }\n          tvChannels {\n            code\n            name_en\n            name_ch\n          }\n          liveEvents {\n            id\n            code\n          }\n          featureStartTime\n          featureMatchSequence\n          poolInfo {\n            normalPools\n            inplayPools\n            sellingPools\n            ntsInfo\n            entInfo\n            definedPools\n            ngsInfo {\n              str\n              name_en\n              name_ch\n              instNo\n            }\n            agsInfo {\n              str\n              name_en\n              name_ch\n            }\n          }\n          runningResult {\n            homeScore\n            awayScore\n            corner\n            homeCorner\n            awayCorner\n          }\n          runningResultExtra {\n            homeScore\n            awayScore\n            corner\n            homeCorner\n            awayCorner\n          }\n          adminOperation {\n            remark {\n              typ\n            }\n          }\n          foPools(fbOddsTypes: $fbOddsTypes) {\n            id\n            status\n            oddsType\n            instNo\n            inplay\n            name_ch\n            name_en\n            updateAt\n            expectedSuspendDateTime\n            lines {\n              lineId\n              status\n              condition\n              main\n              combinations {\n                combId\n                str\n                status\n                offerEarlySettlement\n                currentOdds\n                selections {\n                  selId\n                  str\n                  name_ch\n                  name_en\n                }\n              }\n            }\n          }\n        }\n      }",
