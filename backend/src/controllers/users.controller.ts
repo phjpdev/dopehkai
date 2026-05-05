@@ -271,6 +271,15 @@ class UsersController {
         const Snapshot = await getDoc(Ref);
         if (Snapshot.exists()) {
             const data = Snapshot.data();
+            if (data.isVvvip === true) {
+                const exp = data.date ? new Date(data.date) : null;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                if (exp && !isNaN(exp.getTime()) && exp > today) {
+                    return res.status(200).json({ message: "Valid VIP access" });
+                }
+                return res.status(403).json({ message: "VVVIP expired or invalid" });
+            }
             if (data.isVvip === true) {
                 return res.status(200).json({ message: "Valid VVIP access" });
             }
@@ -322,10 +331,61 @@ class UsersController {
         const Snapshot = await getDoc(Ref);
         if (Snapshot.exists()) {
             const data = Snapshot.data();
+            if (data.isVvvip === true) {
+                const exp = data.date ? new Date(data.date) : null;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                if (exp && !isNaN(exp.getTime()) && exp > today) {
+                    return res.status(200).json({ message: "Valid VVIP access" });
+                }
+                return res.status(403).json({ message: "VVVIP expired" });
+            }
             if (data.isVvip === true) {
                 return res.status(200).json({ message: "Valid VVIP access" });
             }
             return res.status(403).json({ message: "Not VVIP" });
+        }
+        return res.status(403).json({ message: "User not found" });
+    }
+
+    static async verifyVVVIP(req: Request, res: Response) {
+        let sessionId: string | undefined =
+            (req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim() ||
+            (req.cookies?.sessionId as string) ||
+            "";
+        if (!sessionId) {
+            return res.status(401).json({ message: "No session ID provided" });
+        }
+
+        const RefR = doc(db, Tables.sessions, sessionId);
+        const sessionDoc = await getDoc(RefR);
+        if (!sessionDoc.exists()) return res.status(401).json({ message: "Session not found or expired" });
+        const session = sessionDoc.data();
+
+        if (!session) {
+            return res.status(401).json({ message: "Invalid session" });
+        }
+
+        const RefA = doc(db, Tables.admins, session.userId);
+        const adminSnapshot = await getDoc(RefA);
+        if (adminSnapshot.exists()) {
+            return res.status(200).json({ message: "Valid VVVIP panel access" });
+        }
+
+        const Ref = doc(db, Tables.members, session.userId);
+        const Snapshot = await getDoc(Ref);
+        if (Snapshot.exists()) {
+            const data = Snapshot.data();
+            if (data.isVvvip === true) {
+                const exp = data.date ? new Date(data.date) : null;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                if (exp && !isNaN(exp.getTime()) && exp > today) {
+                    return res.status(200).json({ message: "Valid VVVIP access" });
+                }
+                return res.status(403).json({ message: "VVVIP expired" });
+            }
+            return res.status(403).json({ message: "Not VVVIP" });
         }
         return res.status(403).json({ message: "User not found" });
     }

@@ -5,5 +5,6 @@ export interface Member {
     date: string;
     ageRange: string;
     isVvip?: boolean;
+    isVvvip?: boolean;
     created_at: string;
 };

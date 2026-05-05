@@ -20,6 +20,7 @@ import GlobeAnimation from "../../components/globe_animation";
 import PickCard, { formatPickLabel, LockedPickCard } from "./components/pick_card";
 import DetailsCardComponent from "./components/details_card";
 import LockedAnalysisCard from "./components/locked_analysis_card";
+import PredictedScoresPanel from "./components/predicted_scores_panel";
 
 function pickConfidence(p: { confidence: number } | undefined, rawCode: string | undefined): number {
     if (typeof p?.confidence === "number" && p.confidence > 0) return p.confidence;
@@ -39,6 +40,7 @@ function DetailsMatchPage() {
     const [picksAttempted, setPicksAttempted] = useState(false);
     const [isVip, setIsVip] = useState<boolean | null>(null);
     const [isVvip, setIsVvip] = useState<boolean | null>(null);
+    const [isVvvipPanel, setIsVvvipPanel] = useState<boolean | null>(null);
     const navigate = useNavigate();
     const { userRole } = useAuthStore();
 
@@ -61,6 +63,14 @@ function DetailsMatchPage() {
             API.GET(AppGlobal.baseURL + "user/verify/vvip")
                 .then((res) => { setIsVvip(res.status === 200); })
                 .catch(() => { setIsVvip(false); });
+            if (userRole === "admin" || userRole === "subadmin") {
+                setIsVvvipPanel(true);
+            } else {
+                setIsVvvipPanel(null);
+                API.GET(AppGlobal.baseURL + "user/verify/vvvip")
+                    .then((res) => { setIsVvvipPanel(res.status === 200); })
+                    .catch(() => { setIsVvvipPanel(false); });
+            }
         }
     }, [userRole, navigate]);
 
@@ -168,6 +178,11 @@ function DetailsMatchPage() {
 
     const iaP = displayData?.ia;
     const goalsRaw = iaP?.picks?.goals?.bestPick ?? iaP?.bestPick;
+
+    const showPredictedScores =
+        accessResolved &&
+        !!displayData?.ia &&
+        (userRole === "admin" || userRole === "subadmin" || isVvvipPanel === true);
 
     return (
         error ?
@@ -315,10 +330,14 @@ function DetailsMatchPage() {
                             ) : null
                         )}
 
+                        {showPredictedScores && displayData && (
+                            <PredictedScoresPanel probability={displayData} />
+                        )}
+
                         {/* Team analysis cards: VIP+ staff see stats; normal sees two lock panels */}
                         {displayData &&
                             (canSeeVipPicks ? (
-                                <DetailsCardComponent probability={displayData} />
+                                <DetailsCardComponent probability={displayData} tightStackTop={showPredictedScores} />
                             ) : accessResolved ? (
                                 <>
                                     <LockedAnalysisCard kickOff={data.kickOff} />

@@ -60,7 +60,11 @@ export class SessionService {
         const memberDoc = await getDoc(memberRef);
         if (memberDoc.exists()) {
             const memberData = memberDoc.data();
-            if (memberData.isVvip === true) {
+            const vvvipActive =
+                memberData.isVvvip === true &&
+                memberData.date &&
+                new Date(memberData.date) > new Date(new Date().setHours(0, 0, 0, 0));
+            if (vvvipActive || memberData.isVvip === true) {
                 const now = Date.now();
                 const expiresAt = sessionData.expiresAt?.toMillis ? sessionData.expiresAt.toMillis() : sessionData.expiresAt;
                 const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;

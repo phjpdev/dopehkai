@@ -9,10 +9,13 @@ import Crown from "../../../components/crown";
 
 interface Props {
     probability: Probability;
+    /** Less margin above first card (e.g. after 預測比分 panel). */
+    tightStackTop?: boolean;
 }
 
 function DetailsCardComponent({
-    probability
+    probability,
+    tightStackTop,
 }: Props) {
     const { t } = useTranslation();
 
@@ -86,9 +89,10 @@ function DetailsCardComponent({
         awayWinRate = awayWinRateCalculated === 0 ? Math.round(awayWin) : awayWinRateCalculated.toFixed(0);
     }
 
+    const topSpacer = tightStackTop ? "mt-2" : "mt-5";
     return (
         <div className="w-full flex justify-center items-center flex-col">
-            <div className="sm:w-2/3 w-5/6 flex flex-col h-48 bg-white rounded-lg mt-5 items-center justify-center">
+            <div className={`sm:w-2/3 w-5/6 flex flex-col h-48 bg-white rounded-lg ${topSpacer} items-center justify-center`}>
 
                 <div className="flex items-start sm:w-2/3 w-5/6 mb-2">
                     <Card name={getTeamNameInCurrentLanguage(probability.homeLanguages, probability.homeTeamName)} img={probability.homeTeamLogo} probility={homeWin} />

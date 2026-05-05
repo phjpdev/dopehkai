@@ -18,5 +18,8 @@ usersRouter.get('/verify/vip', async (req, res) => {
 usersRouter.get('/verify/vvip', async (req, res) => {
     await UsersController.verifyVVIP(req, res);
 });
+usersRouter.get('/verify/vvvip', async (req, res) => {
+    await UsersController.verifyVVVIP(req, res);
+});
 
 export { usersRouter };
