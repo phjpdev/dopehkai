@@ -45,6 +45,10 @@ export interface PastResultListRow {
     kickOff: string;
     homeTeamName: string;
     awayTeamName: string;
+    homeTeamNameEn?: string;
+    awayTeamNameEn?: string;
+    homeTeamLogo?: string;
+    awayTeamLogo?: string;
     competitionName?: string;
     outcomeName?: string;
     matchOutcome?: string;
@@ -53,7 +57,9 @@ export interface PastResultListRow {
 
 /** Shape rows from `GET /api/match/past-results` into list `Match` for 比賽 cards. */
 export function pastResultRowToMatch(row: PastResultListRow): Match {
-    const logo = AppAssets.logo_black;
+    const fallbackLogo = AppAssets.logo_black;
+    const homeLogo = row.homeTeamLogo?.trim() || fallbackLogo;
+    const awayLogo = row.awayTeamLogo?.trim() || fallbackLogo;
     return {
         id: row.id,
         eventId: row.id,
@@ -64,10 +70,10 @@ export function pastResultRowToMatch(row: PastResultListRow): Match {
         kickOffTime: "",
         kickOffDate: "",
         kickOffDateLocal: "",
-        homeTeamNameEn: row.homeTeamName || "",
-        awayTeamNameEn: row.awayTeamName || "",
-        homeTeamLogo: logo,
-        awayTeamLogo: logo,
+        homeTeamNameEn: row.homeTeamNameEn || row.homeTeamName || "",
+        awayTeamNameEn: row.awayTeamNameEn || row.awayTeamName || "",
+        homeTeamLogo: homeLogo,
+        awayTeamLogo: awayLogo,
         competitionName: row.competitionName || "",
         competitionId: 0,
         competitionIdNav: 0,

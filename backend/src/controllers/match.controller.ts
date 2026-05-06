@@ -76,6 +76,82 @@ function syncFormFieldsFromLastGames(matchData: Match): void {
     if (atf) matchData.awayForm = atf;
 }
 
+/**
+ * Past-results rows can reference fixtures that HKJC sync later removes from `matches`.
+ * Without an `analysis` doc, GET /match-data/:id would 404. Merge a minimal stub (kickoff + names + IA when known).
+ */
+async function upsertAnalysisStubFromPastResult(id: string, data: Match, ia: ResultIA | undefined): Promise<void> {
+    const kickOff = typeof data.kickOff === "string" ? data.kickOff.trim() : "";
+    if (!kickOff) return;
+    const ms = kickOffStringToMs(kickOff);
+    const patch: Record<string, unknown> = {
+        matchId: id,
+        analysisKickOff: kickOff,
+        ...(ms != null ? { analysisKickOffMs: ms } : {}),
+    };
+    const hn = typeof data.homeTeamName === "string" ? data.homeTeamName.trim() : "";
+    const an = typeof data.awayTeamName === "string" ? data.awayTeamName.trim() : "";
+    if (hn) patch.homeTeamName = hn;
+    if (an) patch.awayTeamName = an;
+    if (data.homeTeamNameEn) patch.homeTeamNameEn = data.homeTeamNameEn;
+    if (data.awayTeamNameEn) patch.awayTeamNameEn = data.awayTeamNameEn;
+    if (typeof data.homeTeamLogo === "string" && data.homeTeamLogo) patch.homeTeamLogo = data.homeTeamLogo;
+    if (typeof data.awayTeamLogo === "string" && data.awayTeamLogo) patch.awayTeamLogo = data.awayTeamLogo;
+    if (typeof data.competitionName === "string" && data.competitionName) patch.competitionName = data.competitionName;
+    if (ia && typeof ia.home === "number" && typeof ia.away === "number") {
+        patch.home = ia.home;
+        patch.away = ia.away;
+        patch.draw = ia.draw ?? 0;
+        if (ia.bestPick != null) patch.bestPick = ia.bestPick;
+        if (ia.picks != null) patch.picks = ia.picks;
+    }
+    await setDoc(doc(db, Tables.analysis, id), patch as any, { merge: true });
+    await cacheDel(CacheKeys.matchDetail(id));
+}
+
+function teamFieldCoalesce(fromMatch: string | undefined, fromAlt: unknown, fallback: string): string {
+    const good = (s?: string) => !!(s && s.trim() && s.trim() !== "—");
+    if (good(fromMatch)) return fromMatch!.trim();
+    if (typeof fromAlt === "string" && good(fromAlt)) return fromAlt.trim();
+    return fallback;
+}
+
+/** FootyLogic games list has no logos; HKJC may delete `matches` — fetch banner/details for cards + analysis stubs. */
+async function enrichMatchFromFootyDetailsIfSparse(id: string, m: Match): Promise<Match> {
+    const badName = (s?: string) => !s || !s.trim() || s.trim() === "—";
+    const need =
+        badName(m.homeTeamName) ||
+        badName(m.awayTeamName) ||
+        !m.homeTeamLogo ||
+        !m.awayTeamLogo ||
+        !m.competitionName;
+    if (!need) return m;
+    try {
+        const resultDetails = await API.GET(Global.footylogicDetails + id);
+        const d =
+            resultDetails.status === 200 && resultDetails.data?.statusCode === 200 ? resultDetails.data.data : null;
+        if (!d) return m;
+        const homeLogo = d.homeTeamLogo ? Global.footylogicImg + d.homeTeamLogo + ".png" : m.homeTeamLogo;
+        const awayLogo = d.awayTeamLogo ? Global.footylogicImg + d.awayTeamLogo + ".png" : m.awayTeamLogo;
+        const homeName = badName(m.homeTeamName) ? d.homeTeamName || m.homeTeamName : m.homeTeamName;
+        const awayName = badName(m.awayTeamName) ? d.awayTeamName || m.awayTeamName : m.awayTeamName;
+        return {
+            ...m,
+            homeTeamName: homeName || m.homeTeamName,
+            awayTeamName: awayName || m.awayTeamName,
+            homeTeamNameEn: m.homeTeamNameEn || d.homeTeamName,
+            awayTeamNameEn: m.awayTeamNameEn || d.awayTeamName,
+            homeTeamLogo: homeLogo || m.homeTeamLogo,
+            awayTeamLogo: awayLogo || m.awayTeamLogo,
+            homeTeamId: m.homeTeamId || d.homeTeamId,
+            awayTeamId: m.awayTeamId || d.awayTeamId,
+            competitionName: m.competitionName || d.competitionName || "",
+        } as Match;
+    } catch {
+        return m;
+    }
+}
+
 class MatchController {
     static async getMatchResults() {
         console.log("START....")
@@ -482,6 +558,118 @@ class MatchController {
         }
     }
 
+    /**
+     * Finished fixtures are deleted from `matches` but IA often remains in `analysis`.
+     * Builds a minimal Match for GET /match-data/:id so admin/history links still work.
+     */
+    static async tryBuildMatchFromAnalysisDoc(id: string): Promise<Match | null> {
+        const aRef = doc(db, Tables.analysis, id);
+        const aSnap = await getDoc(aRef);
+        if (!aSnap.exists()) return null;
+        const raw = aSnap.data() as Record<string, unknown>;
+        const mSnap = await getDoc(doc(db, Tables.matches, id));
+        const md = mSnap.exists() ? (mSnap.data() as Match) : ({} as Match);
+
+        const msRaw = raw.analysisKickOffMs;
+        let ms =
+            typeof msRaw === "number" && Number.isFinite(msRaw)
+                ? msRaw
+                : kickOffStringToMs(String(raw.analysisKickOff || ""));
+        if (ms == null && typeof raw.analysisKickOff === "string" && raw.analysisKickOff) {
+            ms = kickOffStringToMs(raw.analysisKickOff);
+        }
+
+        let home = Number(raw.home);
+        let away = Number(raw.away);
+        if (!Number.isFinite(home) || !Number.isFinite(away)) {
+            home = 50;
+            away = 50;
+        }
+        const drawRaw = raw.draw;
+        const drawNum =
+            typeof drawRaw === "number"
+                ? drawRaw
+                : Number.isFinite(Number(drawRaw))
+                  ? Number(drawRaw)
+                  : 0;
+
+        const ia: ResultIA = {
+            home,
+            away,
+            draw: drawNum,
+            bestPick: typeof raw.bestPick === "string" ? raw.bestPick : undefined,
+            picks: raw.picks as ResultIA["picks"],
+        };
+
+        const kickOffStr =
+            (typeof raw.analysisKickOff === "string" && raw.analysisKickOff) ||
+            md.kickOff ||
+            (ms != null
+                ? (() => {
+                      const d = new Date(ms);
+                      const ymd = d.toLocaleDateString("en-CA", { timeZone: "Asia/Hong_Kong" });
+                      const hm = d.toLocaleTimeString("en-GB", {
+                          timeZone: "Asia/Hong_Kong",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                      });
+                      return `${ymd} ${hm}`;
+                  })()
+                : "");
+        if (!kickOffStr) return null;
+
+        const datePart = kickOffStr.trim().split(/\s+/)[0] || "";
+        let kickOffDate = md.kickOffDate || "";
+        let kickOffDateLocal = md.kickOffDateLocal || "";
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+            const [y, mo, d] = datePart.split("-");
+            kickOffDate = `${mo}/${d}/${y}`;
+            kickOffDateLocal = `${d}/${mo}/${y}`;
+        }
+
+        const named = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : "");
+        const homeName = named(md.homeTeamName) || named(raw.homeTeamName) || "—";
+        const awayName = named(md.awayTeamName) || named(raw.awayTeamName) || "—";
+        const homeNameEnPick = named(md.homeTeamNameEn) || named(raw.homeTeamNameEn);
+        const awayNameEnPick = named(md.awayTeamNameEn) || named(raw.awayTeamNameEn);
+
+        const out: Match = {
+            ...md,
+            id,
+            eventId: id,
+            kickOff: kickOffStr,
+            kickOffTime: md.kickOffTime ?? "",
+            kickOffDate,
+            kickOffDateLocal,
+            homeTeamName: homeName,
+            awayTeamName: awayName,
+            homeTeamNameEn: homeNameEnPick || md.homeTeamNameEn,
+            awayTeamNameEn: awayNameEnPick || md.awayTeamNameEn,
+            homeTeamLogo:
+                md.homeTeamLogo || (typeof raw.homeTeamLogo === "string" ? raw.homeTeamLogo : undefined),
+            awayTeamLogo:
+                md.awayTeamLogo || (typeof raw.awayTeamLogo === "string" ? raw.awayTeamLogo : undefined),
+            competitionName: md.competitionName || (typeof raw.competitionName === "string" ? raw.competitionName : "") || "",
+            competitionId: md.competitionId ?? 0,
+            matchOutcome: md.matchOutcome || "",
+            homeForm: md.homeForm || "",
+            awayForm: md.awayForm || "",
+            ia,
+            homeLanguages: md.homeLanguages || {
+                en: homeNameEnPick || homeName || "",
+                zh: homeName || "",
+                zhCN: homeName || "",
+            },
+            awayLanguages: md.awayLanguages || {
+                en: awayNameEnPick || awayName || "",
+                zh: awayName || "",
+                zhCN: awayName || "",
+            },
+        };
+        return out;
+    }
+
     static async getMatchDetails(req: Request, res: Response) {
         const { id } = req.params; // id is eventId
         const refresh = req.query.refresh === 'true';
@@ -536,6 +724,14 @@ class MatchController {
                     }
                     return res.json(existingMatchData);
                 } else {
+                    const analysisOnly = await MatchController.tryBuildMatchFromAnalysisDoc(id);
+                    if (analysisOnly) {
+                        fillIAFromPredictions(analysisOnly);
+                        syncFormFieldsFromLastGames(analysisOnly);
+                        await cacheSet(CacheKeys.matchDetail(id), analysisOnly, 300);
+                        console.log("[getMatchDetails] Returning analysis-only (fixture not in matches collection):", id);
+                        return res.json(analysisOnly);
+                    }
                     console.log("[getMatchDetails] Match not found in database, fetching from APIs...");
                 }
             } else {
@@ -544,6 +740,11 @@ class MatchController {
                 const matchSnap = await getDoc(matchRef);
                 if (matchSnap.exists()) {
                     existingMatchData = matchSnap.data() as Match;
+                } else {
+                    existingMatchData = await MatchController.tryBuildMatchFromAnalysisDoc(id);
+                    if (existingMatchData) {
+                        console.log("[getMatchDetails] Refresh: seeded from analysis (no matches row)");
+                    }
                 }
                 console.log("[getMatchDetails] Refresh requested, fetching from APIs...");
             }
@@ -614,6 +815,14 @@ class MatchController {
                     await cacheSet(CacheKeys.matchDetail(id), minimalMatch, 300);
                     console.log("[getMatchDetails] Returning HKJC-only match (no FootyLogic data):", id);
                     return res.json(minimalMatch);
+                }
+                const analysisOnly = await MatchController.tryBuildMatchFromAnalysisDoc(id);
+                if (analysisOnly) {
+                    fillIAFromPredictions(analysisOnly);
+                    syncFormFieldsFromLastGames(analysisOnly);
+                    await cacheSet(CacheKeys.matchDetail(id), analysisOnly, 300);
+                    console.log("[getMatchDetails] Returning analysis-only after APIs missed (id may be finished / off HKJC):", id);
+                    return res.json(analysisOnly);
                 }
                 console.error("[getMatchDetails] Match not found in database, games API, details API, or HKJC");
                 return res.status(404).json({ error: 'Match not found' });
@@ -1312,6 +1521,10 @@ class MatchController {
                 kickOff: string;
                 homeTeamName: string;
                 awayTeamName: string;
+                homeTeamNameEn?: string;
+                awayTeamNameEn?: string;
+                homeTeamLogo?: string;
+                awayTeamLogo?: string;
                 competitionName?: string;
                 outcomeName?: string;
                 matchOutcome?: string;
@@ -1333,6 +1546,10 @@ class MatchController {
                     kickOff: data.kickOff,
                     homeTeamName: data.homeTeamName ?? "",
                     awayTeamName: data.awayTeamName ?? "",
+                    homeTeamNameEn: data.homeTeamNameEn,
+                    awayTeamNameEn: data.awayTeamNameEn,
+                    homeTeamLogo: typeof data.homeTeamLogo === "string" ? data.homeTeamLogo : undefined,
+                    awayTeamLogo: typeof data.awayTeamLogo === "string" ? data.awayTeamLogo : undefined,
                     competitionName: data.competitionName,
                     outcomeName: data.outcomeName || undefined,
                     matchOutcome: data.matchOutcome || undefined,
@@ -1343,9 +1560,10 @@ class MatchController {
             };
 
             const runGeminiBranch = async (id: string, data: Match, hadComplete: boolean) => {
+                const enriched = await enrichMatchFromFootyDetailsIfSparse(id, data);
                 let geminiStatus: Row["geminiStatus"] = "cached";
                 let geminiMessage: string | undefined;
-                let ia = data.ia as ResultIA | undefined;
+                let ia = enriched.ia as ResultIA | undefined;
                 if (!hadComplete) {
                     if (skipGemini) {
                         geminiStatus = "skipped";
@@ -1366,7 +1584,10 @@ class MatchController {
                         }
                     }
                 }
-                pushRowFromMatchData(id, data, geminiStatus, geminiMessage, ia);
+                const rowData =
+                    ia && ia !== enriched.ia ? ({ ...enriched, ia } as Match) : enriched;
+                pushRowFromMatchData(id, rowData, geminiStatus, geminiMessage, ia);
+                await upsertAnalysisStubFromPastResult(id, rowData, ia);
             };
 
             const seenIds = new Set<string>();
@@ -1429,8 +1650,24 @@ class MatchController {
                     const merged = {
                         ...md,
                         kickOff: kickOffStr,
-                        homeTeamName: md.homeTeamName || "—",
-                        awayTeamName: md.awayTeamName || "—",
+                        homeTeamName: teamFieldCoalesce(md.homeTeamName, a.homeTeamName, "—"),
+                        awayTeamName: teamFieldCoalesce(md.awayTeamName, a.awayTeamName, "—"),
+                        homeTeamNameEn:
+                            md.homeTeamNameEn ||
+                            (typeof a.homeTeamNameEn === "string" ? a.homeTeamNameEn : undefined),
+                        awayTeamNameEn:
+                            md.awayTeamNameEn ||
+                            (typeof a.awayTeamNameEn === "string" ? a.awayTeamNameEn : undefined),
+                        homeTeamLogo:
+                            md.homeTeamLogo ||
+                            (typeof a.homeTeamLogo === "string" ? a.homeTeamLogo : undefined),
+                        awayTeamLogo:
+                            md.awayTeamLogo ||
+                            (typeof a.awayTeamLogo === "string" ? a.awayTeamLogo : undefined),
+                        competitionName:
+                            md.competitionName ||
+                            (typeof a.competitionName === "string" ? a.competitionName : "") ||
+                            "",
                         ia,
                     } as Match;
                     const picks = merged.ia?.picks;
