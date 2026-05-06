@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import AppBarCompoonent from "../../components/appBar";
 import ThemedText from "../../components/themedText";
 import AppColors from "../../ultis/colors";
@@ -15,6 +16,9 @@ import AppAssets from "../../ultis/assets";
 import { getTeamNameInCurrentLanguage } from "../../ultis/languageUtils";
 import { featuredSetForDayMatches } from "../../ultis/vvvipFeaturedMatches";
 import { useCanSeeVvvipFeaturedContent } from "../../hooks/useVvvipFeaturedMarkers";
+import AppGlobal from "../../ultis/global";
+import API from "../../api/api";
+import { pastResultRowToMatch, type PastResultListRow } from "../../ultis/pastResultsToMatchList";
 
 
 function MatchsPage() {
@@ -29,36 +33,64 @@ function MatchsPage() {
     const { data, isLoading, error } = useMatchs();
     const { data: analysisMap } = useMatchAnalysis();
 
-    useEffect(() => {
-        // Ensure data is an array before processing
-        if (!data || !Array.isArray(data)) {
-            setDays([]);
-            return;
-        }
-        const allMatches: Match[] = data;
-        console.log('[MatchsPage] Total matches received:', allMatches.length);
-        // Log unique dates found
-        const uniqueDates = [...new Set(allMatches.map(m => m.kickOff?.split(' ')[0]).filter(Boolean))];
-        console.log('[MatchsPage] Unique dates in matches:', uniqueDates);
-        const dates = getDates(allMatches);
-        console.log('[MatchsPage] Formatted dates for display:', dates);
-        setDays(dates);
-    }, [data]);
+    const isStaffList = userRole === "admin" || userRole === "subadmin";
 
-    useEffect(() => {
-        // Ensure data is an array before processing
+    const { data: pastTwoDaysPayload } = useQuery({
+        queryKey: ["adminPastTwoDaysForMatchList", "skipGemini"],
+        queryFn: async () => {
+            const res = await API.GET(
+                `${AppGlobal.baseURL}match/past-results?skipGemini=true`,
+                {},
+                60000
+            );
+            if (res.status !== 200) {
+                return { matches: [] as PastResultListRow[] };
+            }
+            return res.data as { matches: PastResultListRow[] };
+        },
+        enabled: isStaffList,
+        staleTime: 5 * 60 * 1000,
+        refetchOnWindowFocus: false,
+    });
+
+    const mergedForList = useMemo(() => {
         if (!data || !Array.isArray(data)) {
-            setMatchs([]);
-            return;
+            return [] as Match[];
         }
-        // Merge analysis from DB into matches (so crowns/ia show on cards)
-        const merged = data.map((m: Match) => {
+        let base = [...data] as Match[];
+        const pastRows = pastTwoDaysPayload?.matches ?? [];
+        if (isStaffList && pastRows.length > 0) {
+            const seen = new Set(base.map((m) => String(m.id || (m as any).eventId)));
+            for (const row of pastRows) {
+                const id = String(row.id);
+                if (!seen.has(id)) {
+                    seen.add(id);
+                    base.push(pastResultRowToMatch(row));
+                }
+            }
+        }
+        return base.map((m: Match) => {
             const id = m.id || (m as any).eventId;
             const ia = id && analysisMap?.[id] ? analysisMap[id] : m.ia;
             return { ...m, ia };
         });
-        getMatch(merged);
-    }, [data, selectedDay, analysisMap]);
+    }, [data, analysisMap, isStaffList, pastTwoDaysPayload?.matches]);
+
+    useEffect(() => {
+        if (!mergedForList.length) {
+            setDays([]);
+            return;
+        }
+        setDays(getDates(mergedForList));
+    }, [mergedForList]);
+
+    useEffect(() => {
+        if (!mergedForList.length) {
+            setMatchs([]);
+            return;
+        }
+        getMatch(mergedForList);
+    }, [mergedForList, selectedDay]);
 
     // When returning from details page, scroll back to the last clicked match
     useEffect(() => {

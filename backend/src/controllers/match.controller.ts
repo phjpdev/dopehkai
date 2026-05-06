@@ -25,7 +25,7 @@ import { convertToSimplifiedChinese } from "../service/chinese-simplify";
 import { cacheGet, cacheSet, cacheDel, CacheKeys } from "../cache/redis";
 import { runAnalysisBatch } from "../service/analysisWorker";
 import { fetchLogosForList } from "../service/fetchLogosForList";
-import { kickOffStringToMs } from "../service/analysisRetention";
+import { getAdminPastTwoDaysWindowHkt, kickOffStringToMs } from "../service/analysisRetention";
 
 /** Map FootyLogic list event → Firestore match fields (HKJC sync removes finished games; past-results needs this). */
 function footyEventToMatchPartial(ev: Event): Partial<Match> {
@@ -1299,46 +1299,11 @@ class MatchController {
     /** Admin/subadmin: matches from the previous two calendar days (HKT) with results + IA; fills missing IA via Gemini. */
     static async getPastMatchResults(req: Request, res: Response) {
         try {
-            const pad = (n: number) => String(n).padStart(2, "0");
-            const toHktYmd = (d: Date) =>
-                d.toLocaleDateString("en-CA", { timeZone: "Asia/Hong_Kong", year: "numeric", month: "2-digit", day: "2-digit" });
-            const ymdAddDaysHkt = (ymd: string, delta: number): string => {
-                const [y, m, day] = ymd.split("-").map(Number);
-                const anchor = new Date(`${y}-${pad(m)}-${pad(day)}T12:00:00+08:00`);
-                anchor.setTime(anchor.getTime() + delta * 86400000);
-                return toHktYmd(anchor);
-            };
-            const startOfHktYmdMs = (ymd: string) => {
-                const [y, m, day] = ymd.split("-").map(Number);
-                return new Date(`${y}-${pad(m)}-${pad(day)}T00:00:00+08:00`).getTime();
-            };
-            const endOfHktYmdMs = (ymd: string) => {
-                const [y, m, day] = ymd.split("-").map(Number);
-                return new Date(`${y}-${pad(m)}-${pad(day)}T23:59:59.999+08:00`).getTime();
-            };
-
-            const todayHkt = toHktYmd(new Date());
-            const startYmd = ymdAddDaysHkt(todayHkt, -2);
-            const endYmd = ymdAddDaysHkt(todayHkt, -1);
-            const windowStartMs = startOfHktYmdMs(startYmd);
-            const windowEndMs = endOfHktYmdMs(endYmd);
-
-            /** FootyLogic games feed still lists recent results; HKJC sync deletes finished IDs from `matches`. */
-            const eventsById = new Map<string, Event>();
-            try {
-                const gamesRes = await API.GET(Global.footylogicGames);
-                if (gamesRes.status === 200 && gamesRes.data?.data) {
-                    for (const daum of gamesRes.data.data as Daum[]) {
-                        for (const ev of daum.events || []) {
-                            const ms = footyEventKickOffMs(ev);
-                            if (ms == null || ms < windowStartMs || ms > windowEndMs) continue;
-                            eventsById.set(ev.eventId, ev);
-                        }
-                    }
-                }
-            } catch (e) {
-                console.warn("[getPastMatchResults] footylogicGames failed", e);
-            }
+            const skipGemini =
+                req.query.skipGemini === "true" ||
+                req.query.skipGemini === "1" ||
+                req.query.light === "true";
+            const { todayHkt, startYmd, endYmd, windowStartMs, windowEndMs } = getAdminPastTwoDaysWindowHkt();
 
             const matchesCol = collection(db, Tables.matches);
             const snapshot = await getDocs(matchesCol);
@@ -1382,17 +1347,22 @@ class MatchController {
                 let geminiMessage: string | undefined;
                 let ia = data.ia as ResultIA | undefined;
                 if (!hadComplete) {
-                    const out = await MatchController.ensureGeminiAnalysisForMatch(id);
-                    if (out.ok === true) {
-                        geminiStatus = "refreshed";
-                        ia = out.ia;
+                    if (skipGemini) {
+                        geminiStatus = "skipped";
+                        geminiMessage = "skipGemini";
                     } else {
-                        if (out.reason === "no_predictions" || out.reason === "not_found") {
-                            geminiStatus = "skipped";
-                            geminiMessage = out.message || out.reason;
+                        const out = await MatchController.ensureGeminiAnalysisForMatch(id);
+                        if (out.ok === true) {
+                            geminiStatus = "refreshed";
+                            ia = out.ia;
                         } else {
-                            geminiStatus = "failed";
-                            geminiMessage = out.message || out.reason;
+                            if (out.reason === "no_predictions" || out.reason === "not_found") {
+                                geminiStatus = "skipped";
+                                geminiMessage = out.message || out.reason;
+                            } else {
+                                geminiStatus = "failed";
+                                geminiMessage = out.message || out.reason;
+                            }
                         }
                     }
                 }
@@ -1401,49 +1371,7 @@ class MatchController {
 
             const seenIds = new Set<string>();
 
-            const sortedEvents = Array.from(eventsById.values()).sort(
-                (a, b) => (footyEventKickOffMs(b) ?? 0) - (footyEventKickOffMs(a) ?? 0)
-            );
-
-            for (const ev of sortedEvents) {
-                const id = ev.eventId;
-                seenIds.add(id);
-                const matchRef = doc(db, Tables.matches, id);
-                const snap = await getDoc(matchRef);
-                const partial = footyEventToMatchPartial(ev);
-                const existing = snap.exists() ? (snap.data() as Match) : ({} as Match);
-                const merged = { ...existing, ...partial } as Match;
-                await setDoc(matchRef, merged as any, { merge: true });
-
-                const cachedPicks = merged.ia?.picks;
-                const hasCompletePicks =
-                    cachedPicks?.goals?.bestPick &&
-                    cachedPicks?.had?.bestPick &&
-                    cachedPicks?.handicap?.bestPick &&
-                    cachedPicks?.corners?.bestPick;
-
-                await runGeminiBranch(id, merged, !!hasCompletePicks);
-            }
-
-            for (const docSnap of snapshot.docs) {
-                if (seenIds.has(docSnap.id)) continue;
-                const data = docSnap.data() as Match;
-                if (!data.kickOff) continue;
-                const ms = kickOffStringToMs(data.kickOff);
-                if (ms == null || ms < windowStartMs || ms > windowEndMs) continue;
-
-                const id = docSnap.id;
-                const cachedPicks = data.ia?.picks;
-                const hasCompletePicks =
-                    cachedPicks?.goals?.bestPick &&
-                    cachedPicks?.had?.bestPick &&
-                    cachedPicks?.handicap?.bestPick &&
-                    cachedPicks?.corners?.bestPick;
-
-                await runGeminiBranch(id, data, !!hasCompletePicks);
-            }
-
-            /** HKJC removes finished fixtures from `matches`; games feed may omit them too — still show saved IA from `analysis`. */
+            /** DB `analysis` first: ensures (today−2) and (today−1) appear even when FootyLogic/Gemini is slow. */
             try {
                 const analysisCol = collection(db, Tables.analysis);
                 const analysisSnap = await getDocs(analysisCol);
@@ -1452,14 +1380,21 @@ class MatchController {
                     if (seenIds.has(id)) continue;
                     const a = aDoc.data() as Record<string, unknown>;
                     const msRaw = a.analysisKickOffMs;
-                    const ms =
+                    let ms =
                         typeof msRaw === "number" && Number.isFinite(msRaw)
                             ? msRaw
                             : kickOffStringToMs(String(a.analysisKickOff || ""));
+                    if (ms == null && typeof a.analysisKickOff === "string" && a.analysisKickOff) {
+                        ms = kickOffStringToMs(a.analysisKickOff);
+                    }
                     if (ms == null || ms < windowStartMs || ms > windowEndMs) continue;
-                    const home = Number(a.home);
-                    const away = Number(a.away);
-                    if (!Number.isFinite(home) || !Number.isFinite(away)) continue;
+
+                    let home = Number(a.home);
+                    let away = Number(a.away);
+                    if (!Number.isFinite(home) || !Number.isFinite(away)) {
+                        home = 50;
+                        away = 50;
+                    }
                     seenIds.add(id);
                     const mSnap = await getDoc(doc(db, Tables.matches, id));
                     const md = mSnap.exists() ? (mSnap.data() as Match) : ({} as Match);
@@ -1507,7 +1442,67 @@ class MatchController {
                     await runGeminiBranch(id, merged, !!hasCompletePicks);
                 }
             } catch (e) {
-                console.warn("[getPastMatchResults] analysis fallback failed", e);
+                console.warn("[getPastMatchResults] analysis primary pass failed", e);
+            }
+
+            const eventsById = new Map<string, Event>();
+            try {
+                const gamesRes = await API.GET(Global.footylogicGames);
+                if (gamesRes.status === 200 && gamesRes.data?.data) {
+                    for (const daum of gamesRes.data.data as Daum[]) {
+                        for (const ev of daum.events || []) {
+                            const evMs = footyEventKickOffMs(ev);
+                            if (evMs == null || evMs < windowStartMs || evMs > windowEndMs) continue;
+                            eventsById.set(ev.eventId, ev);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn("[getPastMatchResults] footylogicGames failed", e);
+            }
+
+            const sortedEvents = Array.from(eventsById.values()).sort(
+                (a, b) => (footyEventKickOffMs(b) ?? 0) - (footyEventKickOffMs(a) ?? 0)
+            );
+
+            for (const ev of sortedEvents) {
+                const id = ev.eventId;
+                if (seenIds.has(id)) continue;
+                seenIds.add(id);
+                const matchRef = doc(db, Tables.matches, id);
+                const snap = await getDoc(matchRef);
+                const partial = footyEventToMatchPartial(ev);
+                const existing = snap.exists() ? (snap.data() as Match) : ({} as Match);
+                const merged = { ...existing, ...partial } as Match;
+                await setDoc(matchRef, merged as any, { merge: true });
+
+                const cachedPicks = merged.ia?.picks;
+                const hasCompletePicks =
+                    cachedPicks?.goals?.bestPick &&
+                    cachedPicks?.had?.bestPick &&
+                    cachedPicks?.handicap?.bestPick &&
+                    cachedPicks?.corners?.bestPick;
+
+                await runGeminiBranch(id, merged, !!hasCompletePicks);
+            }
+
+            for (const docSnap of snapshot.docs) {
+                if (seenIds.has(docSnap.id)) continue;
+                const data = docSnap.data() as Match;
+                if (!data.kickOff) continue;
+                const ms = kickOffStringToMs(data.kickOff);
+                if (ms == null || ms < windowStartMs || ms > windowEndMs) continue;
+
+                const id = docSnap.id;
+                seenIds.add(id);
+                const cachedPicks = data.ia?.picks;
+                const hasCompletePicks =
+                    cachedPicks?.goals?.bestPick &&
+                    cachedPicks?.had?.bestPick &&
+                    cachedPicks?.handicap?.bestPick &&
+                    cachedPicks?.corners?.bestPick;
+
+                await runGeminiBranch(id, data, !!hasCompletePicks);
             }
 
             rows.sort(
@@ -1516,7 +1511,7 @@ class MatchController {
 
             return res.json({
                 timezone: "Asia/Hong_Kong",
-                window: { start: startYmd, end: endYmd },
+                window: { start: startYmd, end: endYmd, today: todayHkt },
                 matches: rows,
             });
         } catch (error: any) {

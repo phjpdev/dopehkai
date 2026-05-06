@@ -8,6 +8,42 @@ import { cacheDel, CacheKeys } from "../cache/redis";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
+/** Hong Kong calendar window for admin "過去兩日": (today − 2) 00:00 through (today − 1) 23:59:59 HKT. */
+export function getAdminPastTwoDaysWindowHkt(now: Date = new Date()): {
+    todayHkt: string;
+    startYmd: string;
+    endYmd: string;
+    windowStartMs: number;
+    windowEndMs: number;
+} {
+    const toHktYmd = (d: Date) =>
+        d.toLocaleDateString("en-CA", { timeZone: "Asia/Hong_Kong", year: "numeric", month: "2-digit", day: "2-digit" });
+    const ymdAddDaysHkt = (ymd: string, delta: number): string => {
+        const [y, m, day] = ymd.split("-").map(Number);
+        const anchor = new Date(`${y}-${pad(m)}-${pad(day)}T12:00:00+08:00`);
+        anchor.setTime(anchor.getTime() + delta * 86400000);
+        return toHktYmd(anchor);
+    };
+    const startOfHktYmdMs = (ymd: string) => {
+        const [y, m, day] = ymd.split("-").map(Number);
+        return new Date(`${y}-${pad(m)}-${pad(day)}T00:00:00+08:00`).getTime();
+    };
+    const endOfHktYmdMs = (ymd: string) => {
+        const [y, m, day] = ymd.split("-").map(Number);
+        return new Date(`${y}-${pad(m)}-${pad(day)}T23:59:59.999+08:00`).getTime();
+    };
+    const todayHkt = toHktYmd(now);
+    const startYmd = ymdAddDaysHkt(todayHkt, -2);
+    const endYmd = ymdAddDaysHkt(todayHkt, -1);
+    return {
+        todayHkt,
+        startYmd,
+        endYmd,
+        windowStartMs: startOfHktYmdMs(startYmd),
+        windowEndMs: endOfHktYmdMs(endYmd),
+    };
+}
+
 /** "MM/DD/YYYY" or "DD/MM/YYYY" (if a part > 12, disambiguate) → YYYY-MM-DD for +08 parsing. */
 function slashDatePartToYmd(dp: string): string | null {
     const parts = dp.trim().split("/").map((p) => p.trim());
@@ -81,22 +117,8 @@ export function kickOffStringToMs(kickOff: string): number | null {
 }
 
 /** Start of HKT midnight for calendar day (today - 2): keep analysis for kickoffs on that instant or later. */
-export function getAnalysisRetentionCutoffMs(): number {
-    const toHktYmd = (d: Date) =>
-        d.toLocaleDateString("en-CA", { timeZone: "Asia/Hong_Kong", year: "numeric", month: "2-digit", day: "2-digit" });
-    const ymdAddDaysHkt = (ymd: string, delta: number): string => {
-        const [y, m, day] = ymd.split("-").map(Number);
-        const anchor = new Date(`${y}-${pad(m)}-${pad(day)}T12:00:00+08:00`);
-        anchor.setTime(anchor.getTime() + delta * 86400000);
-        return toHktYmd(anchor);
-    };
-    const startOfHktYmdMs = (ymd: string) => {
-        const [y, m, day] = ymd.split("-").map(Number);
-        return new Date(`${y}-${pad(m)}-${pad(day)}T00:00:00+08:00`).getTime();
-    };
-    const todayHkt = toHktYmd(new Date());
-    const startYmd = ymdAddDaysHkt(todayHkt, -2);
-    return startOfHktYmdMs(startYmd);
+export function getAnalysisRetentionCutoffMs(now: Date = new Date()): number {
+    return getAdminPastTwoDaysWindowHkt(now).windowStartMs;
 }
 
 /** Delete `analysis` docs where `analysisKickOffMs` is before the HK two-day retention window. */

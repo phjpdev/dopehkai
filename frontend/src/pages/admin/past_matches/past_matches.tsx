@@ -32,7 +32,7 @@ interface PastRow {
 
 interface PastPayload {
     timezone: string;
-    window: { start: string; end: string };
+    window: { start: string; end: string; today?: string };
     matches: PastRow[];
 }
 
