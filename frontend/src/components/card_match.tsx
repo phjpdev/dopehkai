@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { FaBasketball } from "react-icons/fa6";
+import { FaFutbol } from "react-icons/fa";
 import { NavigateFunction } from "react-router-dom";
 import { Match } from "../models/match";
 import { useTranslation } from "react-i18next";
@@ -16,6 +17,8 @@ export type Props = {
     crownPosition?: "centerRight" | "topCenter" | "leagueRowRight" | "cardTopRight"
     /** W/L/D form badges under team names — only used on the match detail header. */
     showFormBadges?: boolean
+    /** VVVIP/admin: marks one of the two daily “featured” matches (預測比分 on detail). */
+    showVvvipFeaturedMarker?: boolean
     match: Match | Probability
     navigate: NavigateFunction
 };
@@ -44,6 +47,7 @@ export function CardMatch({
     id,
     crownPosition = "centerRight",
     showFormBadges = false,
+    showVvvipFeaturedMarker = false,
     navigate,
     match,
 }: Props) {
@@ -222,6 +226,20 @@ export function CardMatch({
                             {showFormBadges ? <FormBadges form={awayForm} /> : null}
                         </div>
 
+                        {showVvvipFeaturedMarker && (
+                            <div
+                                className="pointer-events-none absolute bottom-1 right-1 z-10 flex items-center gap-px sm:gap-0.5 sm:bottom-1.5 sm:right-2"
+                                title="VVVIP 精選場次"
+                                aria-hidden
+                            >
+                                {[0, 1, 2].map((i) => (
+                                    <FaFutbol
+                                        key={i}
+                                        className="h-3 w-3 shrink-0 text-neutral-900 drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)] sm:h-3.5 sm:w-3.5"
+                                    />
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

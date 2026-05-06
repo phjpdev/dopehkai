@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppBarCompoonent from "../../components/appBar";
 import ThemedText from "../../components/themedText";
 import AppColors from "../../ultis/colors";
@@ -13,6 +13,8 @@ import moment from "moment";
 import { CardMatch } from "../../components/card_match";
 import AppAssets from "../../ultis/assets";
 import { getTeamNameInCurrentLanguage } from "../../ultis/languageUtils";
+import { featuredSetForDayMatches } from "../../ultis/vvvipFeaturedMatches";
+import { useCanSeeVvvipFeaturedContent } from "../../hooks/useVvvipFeaturedMarkers";
 
 
 function MatchsPage() {
@@ -22,6 +24,7 @@ function MatchsPage() {
     const [matchs, setMatchs] = useState<Match[]>([]);
     const [selectedDay, setSelectedDay] = useState<string>();
     const { userRole } = useAuthStore();
+    const canSeeVvvipFeatured = useCanSeeVvvipFeaturedContent();
 
     const { data, isLoading, error } = useMatchs();
     const { data: analysisMap } = useMatchAnalysis();
@@ -89,6 +92,23 @@ function MatchsPage() {
         } catch {
             // ignore storage/DOM errors
         }
+    }, [matchs]);
+
+    const featuredForSelectedDay = useMemo(() => {
+        if (!selectedDay || !matchs.length) return new Set<string>();
+        const dayMatches = matchs.filter((x) => x.matchDateFormated === selectedDay);
+        return featuredSetForDayMatches(dayMatches);
+    }, [matchs, selectedDay]);
+
+    const featuredSetsByDayLabel = useMemo(() => {
+        const map = new Map<string, Set<string>>();
+        if (!matchs.length) return map;
+        const labels = [...new Set(matchs.map((m) => m.matchDateFormated).filter(Boolean))] as string[];
+        for (const d of labels) {
+            const dayMatches = matchs.filter((x) => x.matchDateFormated === d);
+            map.set(d, featuredSetForDayMatches(dayMatches));
+        }
+        return map;
     }, [matchs]);
 
     function getMatch(matches: Match[]) {
@@ -325,6 +345,7 @@ function MatchsPage() {
                                                         navigate={navigate}
                                                         match={m}
                                                         teams={[getTeamNameInCurrentLanguage(m.homeLanguages, m.homeTeamName), getTeamNameInCurrentLanguage(m.awayLanguages, m.awayTeamName)]}
+                                                        showVvvipFeaturedMarker={canSeeVvvipFeatured && featuredForSelectedDay.has(String(matchId))}
                                                     />
                                                 </div>
                                             );
@@ -381,6 +402,7 @@ function MatchsPage() {
                                                             navigate={navigate}
                                                             match={m}
                                                             teams={[getTeamNameInCurrentLanguage(m.homeLanguages, m.homeTeamName), getTeamNameInCurrentLanguage(m.awayLanguages, m.awayTeamName)]}
+                                                            showVvvipFeaturedMarker={canSeeVvvipFeatured && (featuredSetsByDayLabel.get(d)?.has(String(matchId)) ?? false)}
                                                         />
                                                     </div>
                                                 );
