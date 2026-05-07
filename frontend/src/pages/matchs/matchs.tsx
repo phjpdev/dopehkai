@@ -76,7 +76,7 @@ function MatchsPage() {
             return { ...m, ia };
         });
         // Past fixtures merged above were never annotated on the server; re-run the same
-        // deterministic daily pair logic on the full list so staff see the pencil on /matches.
+        // deterministic daily pair logic on the full list for staff workflows.
         annotateMatchesWithAdminDailyEditable(withIa);
         return withIa;
     }, [data, analysisMap, isStaffList, pastTwoDaysPayload?.matches]);
@@ -315,14 +315,14 @@ function MatchsPage() {
                             className="mx-auto mt-5 w-11/12 rounded-lg bg-white p-2 shadow-lg sm:w-3/5 sm:p-2.5"
                             style={{ backgroundColor: "white" }}
                         >
-                            <div className="flex w-full flex-nowrap items-stretch gap-1.5 sm:gap-2">
+                            <div className="flex w-full flex-wrap items-stretch justify-center gap-1.5 sm:gap-2">
                                 <div
                                     onClick={() => setSelectedDay(undefined)}
                                     style={{
                                         backgroundColor: !selectedDay ? AppColors.primary : "white",
                                         border: !selectedDay ? "none" : "2px solid #e5e7eb",
                                     }}
-                                    className={`flex h-9 min-h-9 min-w-0 flex-1 basis-0 cursor-pointer items-center justify-center gap-0.5 rounded-md px-1 text-[11px] font-semibold transition-transform hover:scale-[1.02] sm:px-1.5 sm:text-xs ${
+                                    className={`flex min-h-9 cursor-pointer items-center justify-center gap-0.5 rounded-md px-2 py-1.5 text-[11px] font-semibold transition-transform hover:scale-[1.02] sm:px-3 sm:text-xs ${
                                         !selectedDay
                                             ? "text-white shadow-sm"
                                             : "text-black hover:bg-gray-50 hover:border-gray-300"
@@ -330,13 +330,13 @@ function MatchsPage() {
                                 >
                                     <ThemedText
                                         type="subtitle"
-                                        className={`truncate text-center text-[11px] leading-tight sm:text-xs ${!selectedDay ? "text-white" : "text-black"}`}
+                                        className={`text-center text-[11px] leading-tight sm:text-xs ${!selectedDay ? "text-white" : "text-black"}`}
                                         colorText={!selectedDay ? "white" : "black"}
                                     >
                                         {t("all")}
                                     </ThemedText>
                                     <svg
-                                        className={`h-3 w-3 flex-shrink-0 ${!selectedDay ? "text-white" : "text-black"}`}
+                                        className={`h-3 w-3 shrink-0 ${!selectedDay ? "text-white" : "text-black"}`}
                                         fill="none"
                                         stroke="currentColor"
                                         viewBox="0 0 24 24"
@@ -353,7 +353,7 @@ function MatchsPage() {
                                             backgroundColor: selectedDay === day ? AppColors.primary : "white",
                                             border: selectedDay === day ? "none" : "2px solid #e5e7eb",
                                         }}
-                                        className={`flex h-9 min-h-9 min-w-0 flex-1 basis-0 cursor-pointer items-center justify-center gap-0.5 rounded-md px-1 text-[11px] font-semibold transition-transform hover:scale-[1.02] sm:px-1.5 sm:text-xs ${
+                                        className={`flex min-h-9 cursor-pointer items-center justify-center gap-0.5 rounded-md px-2 py-1.5 text-[11px] font-semibold transition-transform hover:scale-[1.02] sm:px-3 sm:text-xs ${
                                             selectedDay === day
                                                 ? "text-white shadow-sm"
                                                 : "text-black hover:bg-gray-50 hover:border-gray-300"
@@ -361,13 +361,13 @@ function MatchsPage() {
                                     >
                                         <ThemedText
                                             type="title"
-                                            className={`truncate text-center font-body text-[11px] leading-tight sm:text-xs ${selectedDay === day ? "text-white" : "text-black"}`}
+                                            className={`text-center font-body text-[11px] leading-tight sm:text-xs ${selectedDay === day ? "text-white" : "text-black"}`}
                                             colorText={selectedDay === day ? "white" : "black"}
                                         >
                                             {day}
                                         </ThemedText>
                                         <svg
-                                            className={`h-3 w-3 flex-shrink-0 ${selectedDay === day ? "text-white" : "text-black"}`}
+                                            className={`h-3 w-3 shrink-0 ${selectedDay === day ? "text-white" : "text-black"}`}
                                             fill="none"
                                             stroke="currentColor"
                                             viewBox="0 0 24 24"

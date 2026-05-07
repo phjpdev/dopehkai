@@ -20,7 +20,7 @@ export type Props = {
     showFormBadges?: boolean
     /** VVVIP/admin: marks one of the two daily “featured” matches (預測比分 on detail). */
     showVvvipFeaturedMarker?: boolean
-    /** Admin/subadmin: this fixture is among the deterministic daily editable pair */
+    /** Match list only: admin/subadmin daily-editable pair marker (bottom-left). */
     showAdminDailyEditableIndicator?: boolean
     match: Match | Probability
     navigate: NavigateFunction
@@ -128,7 +128,7 @@ export function CardMatch({
                         <span className="text-[10px] sm:text-xs font-semibold mt-0.5">{month.toUpperCase()}</span>
                     </div>
 
-                    {/* Main content — relative for absolute corner markers (crowns, VVVIP balls, admin pencil) */}
+                    {/* Main content — relative for absolute corner markers (crowns, VVVIP balls, list edit hint) */}
                     <div className="relative flex flex-1 items-center justify-between py-3 px-2 sm:px-4 gap-1">
                         {higherWinRate > 70 && crownPosition === "cardTopRight" && (
                             <div className="absolute top-1 right-2 sm:top-1.5 sm:right-3 z-10 pointer-events-none flex items-center">
@@ -155,11 +155,11 @@ export function CardMatch({
                             {showFormBadges ? <FormBadges form={homeForm} /> : null}
                         </div>
 
-                        {/* Center info */}
-                        <div className="relative flex flex-col items-center justify-center gap-0.5 flex-shrink-0 px-1 sm:px-2 min-w-[6.5rem] sm:min-w-[8.5rem]">
+                        {/* Center info — min-w-0 + wrap so long league names / dates do not crush teammates */}
+                        <div className="relative flex min-w-0 max-w-[42%] sm:max-w-[36%] flex-col items-center justify-center gap-0.5 px-0.5 sm:px-2">
                             {/* League flag + name (+ crowns for details header) */}
-                            <div className="flex flex-row items-center gap-1 w-full">
-                                <div className="flex flex-row items-center gap-1 min-w-0 flex-1">
+                            <div className="flex w-full min-w-0 flex-wrap items-center justify-center gap-x-1 gap-y-0">
+                                <div className="flex min-w-0 max-w-full flex-row flex-wrap items-center justify-center gap-1">
                                     {flagUrl && (
                                         <img
                                             src={flagUrl}
@@ -170,7 +170,7 @@ export function CardMatch({
                                         />
                                     )}
                                     {(competitionName || leagueCode) && (
-                                        <span className="text-[7px] sm:text-[9px] font-semibold text-gray-600 min-w-0" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        <span className="text-center text-[7px] font-semibold leading-tight text-gray-600 sm:text-[9px] whitespace-normal break-words">
                                             {competitionName || leagueCode}
                                         </span>
                                     )}
@@ -185,21 +185,21 @@ export function CardMatch({
                             {/* VS */}
                             <span className="text-base sm:text-lg font-bold text-gray-800">VS</span>
 
-                            {/* Date */}
-                            <span className="text-[9px] sm:text-[11px] text-gray-500 font-medium">{centerDate}</span>
-
-                            {/* Time */}
-                            <span className="text-sm sm:text-base font-bold" style={{ color: '#eab308' }}>{kickOffTime}</span>
+                            {/* Date / time — stacked lines so long locales stay readable */}
+                            <div className="flex flex-col items-center gap-0.5 text-center">
+                                <span className="text-[9px] font-medium leading-tight text-gray-500 sm:text-[11px]">{centerDate}</span>
+                                <span className="text-xs font-bold leading-tight sm:text-base" style={{ color: '#eab308' }}>{kickOffTime}</span>
+                            </div>
 
                             {/* Countdown or result statistics icon */}
                             {countdown ? (
-                                <div className="flex items-center gap-0.5">
-                                    <span className="text-[8px] sm:text-[10px] text-gray-400">⏱ {countdown}</span>
+                                <div className="flex max-w-full flex-wrap items-center justify-center gap-0.5 px-0.5">
+                                    <span className="text-center text-[8px] leading-tight text-gray-400 sm:text-[10px]">⏱ {countdown}</span>
                                 </div>
                             ) : (
-                                <div className="flex flex-row items-center gap-1">
-                                    <FaBasketball color="#000000" size={8} />
-                                    <span className="text-[6px] sm:text-[8px] font-semibold text-black/60">{t("resultStatistics")}</span>
+                                <div className="flex max-w-full flex-row flex-wrap items-center justify-center gap-1 px-0.5">
+                                    <FaBasketball color="#000000" size={8} className="shrink-0" />
+                                    <span className="text-center text-[6px] font-semibold leading-tight text-black/60 sm:text-[8px]">{t("resultStatistics")}</span>
                                 </div>
                             )}
 

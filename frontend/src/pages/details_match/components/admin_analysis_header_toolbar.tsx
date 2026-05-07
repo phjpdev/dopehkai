@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { HiChevronDown, HiChevronUp, HiPencil } from "react-icons/hi";
+import { HiChevronRight } from "react-icons/hi";
 import type { AdminAnalysisEdits, Probability, ResultIA } from "../../../models/probability";
 import ThemedText from "../../../components/themedText";
 import { formatPickLabel } from "./pick_card";
-import AppColors from "../../../ultis/colors";
+import { getTeamNameInCurrentLanguage } from "../../../ultis/languageUtils";
 
 type PickKey = "goals" | "had" | "handicap" | "corners";
 
@@ -36,6 +36,118 @@ function baselineConfidence(key: PickKey, ia?: ResultIA): number {
     return 0;
 }
 
+function formatStatWinRateShowing(override: string | undefined, fallbackBase: string | number): string {
+    const fb = `${String(fallbackBase).replace(/%/g, "").trim()}%`;
+    if (override == null) return fb;
+    const o = override.trim();
+    if (!o) return fb;
+    return o.endsWith("%") ? o : `${o.replace(/%/g, "")}%`;
+}
+
+/** Same normalization as team cards on the detail page. */
+function pillPercents(probability: Probability): { home: number; away: number } {
+    let homeWin = probability.ia && probability.ia.home ? probability.ia.home : (probability.predictions?.homeWinRate ?? 0);
+    let awayWin = probability.ia && probability.ia.away ? probability.ia.away : (probability.predictions?.awayWinRate ?? 0);
+
+    if ((!homeWin || homeWin === 0) && (!awayWin || awayWin === 0)) {
+        homeWin = 50;
+        awayWin = 50;
+    } else if (!homeWin || homeWin === 0) {
+        homeWin = Math.max(0, Math.min(100, 100 - awayWin));
+    } else if (!awayWin || awayWin === 0) {
+        awayWin = Math.max(0, Math.min(100, 100 - homeWin));
+    }
+
+    const total = homeWin + awayWin;
+    if (total > 0 && Math.abs(total - 100) > 0.01) {
+        homeWin = (homeWin / total) * 100;
+        awayWin = (awayWin / total) * 100;
+    }
+
+    const finalTotal = homeWin + awayWin;
+    if (Math.abs(finalTotal - 100) > 0.01) {
+        if (homeWin >= awayWin) {
+            homeWin = 100 - awayWin;
+        } else {
+            awayWin = 100 - homeWin;
+        }
+    }
+
+    homeWin = Math.max(0, Math.min(100, homeWin));
+    awayWin = Math.max(0, Math.min(100, awayWin));
+
+    const ae = probability.adminAnalysisEdits;
+    const pillHome =
+        typeof ae?.iaWinPctDisplay?.home === "number" && !Number.isNaN(ae.iaWinPctDisplay.home)
+            ? ae.iaWinPctDisplay.home
+            : homeWin;
+    const pillAway =
+        typeof ae?.iaWinPctDisplay?.away === "number" && !Number.isNaN(ae.iaWinPctDisplay.away)
+            ? ae.iaWinPctDisplay.away
+            : awayWin;
+
+    return {
+        home: Math.round(Math.max(0, Math.min(100, pillHome))),
+        away: Math.round(Math.max(0, Math.min(100, pillAway))),
+    };
+}
+
+function statWinRateBaselines(probability: Probability): { home: string; away: string } {
+    let homeWin = probability.ia && probability.ia.home ? probability.ia.home : (probability.predictions?.homeWinRate ?? 0);
+    let awayWin = probability.ia && probability.ia.away ? probability.ia.away : (probability.predictions?.awayWinRate ?? 0);
+
+    if ((!homeWin || homeWin === 0) && (!awayWin || awayWin === 0)) {
+        homeWin = 50;
+        awayWin = 50;
+    } else if (!homeWin || homeWin === 0) {
+        homeWin = Math.max(0, Math.min(100, 100 - awayWin));
+    } else if (!awayWin || awayWin === 0) {
+        awayWin = Math.max(0, Math.min(100, 100 - homeWin));
+    }
+
+    const total = homeWin + awayWin;
+    if (total > 0 && Math.abs(total - 100) > 0.01) {
+        homeWin = (homeWin / total) * 100;
+        awayWin = (awayWin / total) * 100;
+    }
+
+    const finalTotal = homeWin + awayWin;
+    if (Math.abs(finalTotal - 100) > 0.01) {
+        if (homeWin >= awayWin) {
+            homeWin = 100 - awayWin;
+        } else {
+            awayWin = 100 - homeWin;
+        }
+    }
+
+    homeWin = Math.max(0, Math.min(100, homeWin));
+    awayWin = Math.max(0, Math.min(100, awayWin));
+
+    let homeWinRate: string | number = Math.round(homeWin);
+    let awayWinRate: string | number = Math.round(awayWin);
+
+    const hasLastGames = !!probability.lastGames?.homeTeam && !!probability.lastGames?.awayTeam;
+    if (hasLastGames) {
+        const homeStats = probability.lastGames!.homeTeam;
+        const homeResults = homeStats.teamForm.split(",");
+        const homeWinCount = homeResults.filter((r) => r === "W").length;
+        const homeWinRateCalculated = homeResults.length > 0 ? (homeWinCount / homeResults.length) * 100 : 0;
+        homeWinRate = homeWinRateCalculated === 0 ? Math.round(homeWin) : homeWinRateCalculated.toFixed(0);
+
+        const awayStats = probability.lastGames!.awayTeam;
+        const awayResults = awayStats.teamForm.split(",");
+        const awayWinCount = awayResults.filter((r) => r === "W").length;
+        const awayWinRateCalculated = awayResults.length > 0 ? (awayWinCount / awayResults.length) * 100 : 0;
+        awayWinRate = awayWinRateCalculated === 0 ? Math.round(awayWin) : awayWinRateCalculated.toFixed(0);
+    }
+
+    const ae = probability.adminAnalysisEdits;
+    return {
+        home: formatStatWinRateShowing(ae?.statsWinRateDisplay?.home, homeWinRate),
+        away: formatStatWinRateShowing(ae?.statsWinRateDisplay?.away, awayWinRate),
+    };
+}
+
 interface Props {
     /** When true, show toolbar under match header */
     visible: boolean;
@@ -43,10 +155,10 @@ interface Props {
     patchAdminAnalysis: (p: Partial<AdminAnalysisEdits>) => Promise<void>;
 }
 
-/** Prominent edit control below the fixture header; expands into inputs for labels + %. */
+/** Bottom-page control that opens a modal to edit displayed analysis (picks, team %, stat win rates). */
 export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAnalysis }: Props) {
     const { t } = useTranslation();
-    const [expanded, setExpanded] = useState(false);
+    const [modalOpen, setModalOpen] = useState(false);
     const [busy, setBusy] = useState(false);
     const ia = displayData?.ia;
     const edits = displayData?.adminAnalysisEdits;
@@ -63,9 +175,26 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
         handicap: 0,
         corners: 0,
     });
+    const [homePill, setHomePill] = useState(0);
+    const [awayPill, setAwayPill] = useState(0);
+    const [homeStat, setHomeStat] = useState("");
+    const [awayStat, setAwayStat] = useState("");
+    const prevModalOpen = useRef(false);
 
     useEffect(() => {
-        if (!visible || !ia) return;
+        if (!visible) {
+            setModalOpen(false);
+            prevModalOpen.current = false;
+        }
+    }, [visible]);
+
+    /** Load latest display into the form when the modal opens (avoid resetting on every parent render). */
+    useEffect(() => {
+        if (!visible || !displayData || !ia) return;
+        const justOpened = modalOpen && !prevModalOpen.current;
+        prevModalOpen.current = modalOpen;
+        if (!justOpened) return;
+
         const nextText = {} as Record<PickKey, string>;
         const nextPct = {} as Record<PickKey, number>;
         const pd = edits?.pickDisplay;
@@ -81,9 +210,15 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
         }
         setText(nextText);
         setPct(nextPct);
-    }, [visible, ia, edits?.pickDisplay, edits?.pickConfidenceDisplay]);
+        const pills = pillPercents(displayData);
+        setHomePill(pills.home);
+        setAwayPill(pills.away);
+        const stats = statWinRateBaselines(displayData);
+        setHomeStat(stats.home.replace(/%/g, ""));
+        setAwayStat(stats.away.replace(/%/g, ""));
+    }, [visible, modalOpen, displayData, ia, edits?.pickDisplay, edits?.pickConfidenceDisplay, edits?.iaWinPctDisplay, edits?.statsWinRateDisplay]);
 
-    if (!visible || !ia) return null;
+    if (!visible || !ia || !displayData) return null;
 
     async function save() {
         setBusy(true);
@@ -101,108 +236,197 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
                     handicap: pct.handicap,
                     corners: pct.corners,
                 },
+                iaWinPctDisplay: {
+                    home: homePill,
+                    away: awayPill,
+                },
+                statsWinRateDisplay: {
+                    home: homeStat.trim(),
+                    away: awayStat.trim(),
+                },
             });
-            setExpanded(false);
+            setModalOpen(false);
         } finally {
             setBusy(false);
         }
     }
 
-    const collapseLabel =
-        t("collapse") !== "collapse" ? t("collapse") : "Close";
-    const editAnalysisLabel =
-        t("editMatchAnalysis") !== "editMatchAnalysis" ? t("editMatchAnalysis") : "編輯場次分析";
+    const closeLabel =
+        t("cancel") !== "cancel" ? t("cancel") : "取消";
+    const openModalLabel =
+        t("openMatchAnalysisModal") !== "openMatchAnalysisModal"
+            ? t("openMatchAnalysisModal")
+            : "修改本場分析與顯示";
     const saveLabel = t("save") !== "save" ? t("save") : "儲存";
+    const modalTitle =
+        t("editMatchAnalysisModalTitle") !== "editMatchAnalysisModalTitle"
+            ? t("editMatchAnalysisModalTitle")
+            : "編輯場次分析";
+    const homeTeamLabel = getTeamNameInCurrentLanguage(displayData.homeLanguages, displayData.homeTeamName);
+    const awayTeamLabel = getTeamNameInCurrentLanguage(displayData.awayLanguages, displayData.awayTeamName);
 
     return (
-        <div id="match-analysis-edit-toolbar" className="sm:w-2/3 w-5/6 mx-auto mt-2 px-1">
-            <button
-                type="button"
-                disabled={busy}
-                onClick={() => setExpanded((x) => !x)}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-black shadow-md ring-1 ring-black/10 hover:bg-neutral-50"
-            >
-                <HiPencil className="h-4 w-4 shrink-0" />
-                <span>{expanded ? collapseLabel : editAnalysisLabel}</span>
-                {expanded ? (
-                    <HiChevronUp className="h-4 w-4 shrink-0" />
-                ) : (
-                    <HiChevronDown className="h-4 w-4 shrink-0" />
-                )}
-            </button>
+        <>
+            <div id="match-analysis-edit-toolbar" className="sm:w-2/3 w-5/6 mx-auto mt-10 px-1 pb-2">
+                <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setModalOpen(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black shadow-md ring-1 ring-black/10 hover:bg-neutral-50"
+                >
+                    <span className="text-center leading-snug">{openModalLabel}</span>
+                    <HiChevronRight className="h-5 w-5 shrink-0" aria-hidden />
+                </button>
+            </div>
 
-            {expanded ? (
-                <div className="mt-3 space-y-3 rounded-xl bg-white p-4 shadow-md ring-1 ring-black/10">
-                    <ThemedText type="defaultSemiBold" className="text-center text-xs text-black/60">
-                        {t("editAnalysisHint") !== "editAnalysisHint"
-                            ? t("editAnalysisHint")
-                            : "修改下方「分析」文字與右側數值百分比；儲存後會套用於本案四張分析卡。"}
-                    </ThemedText>
-                    {ROWS.map(({ key, line1, line2 }) => (
-                        <div
-                            key={key}
-                            className="flex flex-col gap-2 border-b border-black/10 pb-3 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:gap-3"
-                        >
-                            <span className="shrink-0 text-xs font-bold text-black sm:w-24">
-                                {line1}
-                                {line2}
-                            </span>
-                            <label className="flex min-w-0 flex-1 flex-col gap-1">
-                                <span className="text-[10px] text-neutral-500">分析</span>
-                                <input
-                                    className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-black"
-                                    value={text[key]}
-                                    disabled={busy}
-                                    onChange={(e) =>
-                                        setText((s) => ({ ...s, [key]: e.target.value }))
-                                    }
-                                />
-                            </label>
-                            <label className="flex shrink-0 flex-col gap-1 sm:w-24">
-                                <span className="text-[10px] text-neutral-500">%</span>
+            {modalOpen ? (
+                <div
+                    className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 sm:items-center"
+                    role="presentation"
+                    onClick={() => !busy && setModalOpen(false)}
+                >
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="match-analysis-modal-title"
+                        className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-4 shadow-xl sm:rounded-2xl sm:p-5"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h2 id="match-analysis-modal-title" className="mb-3 text-center text-base font-bold text-black">
+                            {modalTitle}
+                        </h2>
+                        <ThemedText type="defaultSemiBold" className="mb-4 block text-center text-xs text-black/60">
+                            {t("editAnalysisHint") !== "editAnalysisHint"
+                                ? t("editAnalysisHint")
+                                : "修改下方「分析」文字與右側數值百分比；亦可調整主客隊頭條百分比與統計區勝率顯示。儲存後立即套用。"}
+                        </ThemedText>
+
+                        {ROWS.map(({ key, line1, line2 }) => (
+                            <div
+                                key={key}
+                                className="flex flex-col gap-2 border-b border-black/10 pb-3 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:gap-3"
+                            >
+                                <span className="shrink-0 text-xs font-bold text-black sm:w-24">
+                                    {line1}
+                                    {line2}
+                                </span>
+                                <label className="flex min-w-0 flex-1 flex-col gap-1">
+                                    <span className="text-[10px] text-neutral-500">分析</span>
+                                    <input
+                                        className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-black"
+                                        value={text[key]}
+                                        disabled={busy}
+                                        onChange={(e) =>
+                                            setText((s) => ({ ...s, [key]: e.target.value }))
+                                        }
+                                    />
+                                </label>
+                                <label className="flex shrink-0 flex-col gap-1 sm:w-24">
+                                    <span className="text-[10px] text-neutral-500">%</span>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={100}
+                                        className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-black"
+                                        value={pct[key]}
+                                        disabled={busy}
+                                        onChange={(e) =>
+                                            setPct((s) => ({
+                                                ...s,
+                                                [key]: Math.round(
+                                                    Math.max(
+                                                        0,
+                                                        Math.min(100, Number(e.target.value) || 0),
+                                                    ),
+                                                ),
+                                            }))
+                                        }
+                                    />
+                                </label>
+                            </div>
+                        ))}
+
+                        <div className="mt-4 space-y-3 border-t border-black/10 pt-4">
+                            <p className="text-center text-[11px] font-bold text-black/70">主客隊顯示</p>
+                            <label className="flex flex-col gap-1">
+                                <span className="text-[10px] text-neutral-500">{homeTeamLabel} — 頭條 %</span>
                                 <input
                                     type="number"
                                     min={0}
                                     max={100}
                                     className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-black"
-                                    value={pct[key]}
+                                    value={homePill}
                                     disabled={busy}
                                     onChange={(e) =>
-                                        setPct((s) => ({
-                                            ...s,
-                                            [key]: Math.round(
-                                                Math.max(
-                                                    0,
-                                                    Math.min(100, Number(e.target.value) || 0),
-                                                ),
+                                        setHomePill(
+                                            Math.round(
+                                                Math.max(0, Math.min(100, Number(e.target.value) || 0)),
                                             ),
-                                        }))
+                                        )
                                     }
                                 />
                             </label>
+                            <label className="flex flex-col gap-1">
+                                <span className="text-[10px] text-neutral-500">{awayTeamLabel} — 頭條 %</span>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-black"
+                                    value={awayPill}
+                                    disabled={busy}
+                                    onChange={(e) =>
+                                        setAwayPill(
+                                            Math.round(
+                                                Math.max(0, Math.min(100, Number(e.target.value) || 0)),
+                                            ),
+                                        )
+                                    }
+                                />
+                            </label>
+                            <label className="flex flex-col gap-1">
+                                <span className="text-[10px] text-neutral-500">{homeTeamLabel} — 統計勝率顯示</span>
+                                <input
+                                    className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-black"
+                                    value={homeStat}
+                                    disabled={busy}
+                                    placeholder="例如 38 或 38%"
+                                    onChange={(e) => setHomeStat(e.target.value)}
+                                />
+                            </label>
+                            <label className="flex flex-col gap-1">
+                                <span className="text-[10px] text-neutral-500">{awayTeamLabel} — 統計勝率顯示</span>
+                                <input
+                                    className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-black"
+                                    value={awayStat}
+                                    disabled={busy}
+                                    placeholder="例如 38 或 38%"
+                                    onChange={(e) => setAwayStat(e.target.value)}
+                                />
+                            </label>
                         </div>
-                    ))}
-                    <div className="flex gap-3 pt-2">
-                        <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => void save()}
-                            className="flex-1 rounded-lg py-2.5 font-semibold text-black"
-                            style={{ backgroundColor: AppColors.primary }}
-                        >
-                            {saveLabel}
-                        </button>
-                        <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => setExpanded(false)}
-                            className="rounded-lg border border-neutral-300 px-4 py-2.5 text-sm font-semibold text-black hover:bg-neutral-50"
-                        >
-                            {collapseLabel}
-                        </button>
+
+                        <div className="mt-5 flex gap-3">
+                            <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void save()}
+                                className="flex-1 rounded-lg border border-neutral-300 bg-white py-2.5 font-semibold text-black hover:bg-neutral-50 disabled:opacity-50"
+                            >
+                                {saveLabel}
+                            </button>
+                            <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => setModalOpen(false)}
+                                className="rounded-lg border border-neutral-300 px-4 py-2.5 text-sm font-semibold text-black hover:bg-neutral-50"
+                            >
+                                {closeLabel}
+                            </button>
+                        </div>
                     </div>
                 </div>
             ) : null}
-        </div>
+        </>
     );
 }

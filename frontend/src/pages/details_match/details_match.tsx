@@ -280,16 +280,6 @@ function DetailsMatchPage() {
                     <AppBarComponent />
                     <div className="mt-24" >
                         {displayData && <HeaderDetailsComponent data={displayData} />}
-                        {displayData ? (
-                            <AdminAnalysisHeaderToolbar
-                                visible={Boolean(
-                                    accessResolved &&
-                                        staffCanEditAnalysisDisplay,
-                                )}
-                                displayData={displayData}
-                                patchAdminAnalysis={patchAdminAnalysis}
-                            />
-                        ) : null}
 
                         {!accessResolved && (
                             <div style={{ marginTop: 30 }}>
@@ -352,12 +342,6 @@ function DetailsMatchPage() {
                                             goalsRaw,
                                         )}
                                         loading={generatingPicks && !goalsRaw}
-                                        adminEditActive={staffCanEditAnalysisDisplay}
-                                        onCommitDisplayText={
-                                            staffCanEditAnalysisDisplay
-                                                ? (v) => patchAdminAnalysis({ pickDisplay: { goals: v } })
-                                                : undefined
-                                        }
                                     />
                                     <PickCard
                                         typeLine1="主客"
@@ -370,12 +354,6 @@ function DetailsMatchPage() {
                                             displayData.ia?.picks?.had?.bestPick,
                                         )}
                                         loading={generatingPicks && !displayData.ia?.picks?.had?.bestPick}
-                                        adminEditActive={staffCanEditAnalysisDisplay}
-                                        onCommitDisplayText={
-                                            staffCanEditAnalysisDisplay
-                                                ? (v) => patchAdminAnalysis({ pickDisplay: { had: v } })
-                                                : undefined
-                                        }
                                     />
                                     <PickCard
                                         typeLine1="讓"
@@ -388,12 +366,6 @@ function DetailsMatchPage() {
                                             displayData.ia?.picks?.handicap?.bestPick,
                                         )}
                                         loading={generatingPicks && !displayData.ia?.picks?.handicap?.bestPick}
-                                        adminEditActive={staffCanEditAnalysisDisplay}
-                                        onCommitDisplayText={
-                                            staffCanEditAnalysisDisplay
-                                                ? (v) => patchAdminAnalysis({ pickDisplay: { handicap: v } })
-                                                : undefined
-                                        }
                                     />
                                     <PickCard
                                         typeLine1="角球"
@@ -406,12 +378,6 @@ function DetailsMatchPage() {
                                             displayData.ia?.picks?.corners?.bestPick,
                                         )}
                                         loading={generatingPicks && !displayData.ia?.picks?.corners?.bestPick}
-                                        adminEditActive={staffCanEditAnalysisDisplay}
-                                        onCommitDisplayText={
-                                            staffCanEditAnalysisDisplay
-                                                ? (v) => patchAdminAnalysis({ pickDisplay: { corners: v } })
-                                                : undefined
-                                        }
                                     />
                                 </div>
                             ) : displayData?.ia && canSeeVipPicks ? (
@@ -427,12 +393,6 @@ function DetailsMatchPage() {
                                             goalsRaw,
                                         )}
                                         loading={generatingPicks && !goalsRaw}
-                                        adminEditActive={staffCanEditAnalysisDisplay}
-                                        onCommitDisplayText={
-                                            staffCanEditAnalysisDisplay
-                                                ? (v) => patchAdminAnalysis({ pickDisplay: { goals: v } })
-                                                : undefined
-                                        }
                                     />
                                     <LockedPickCard typeLine1="主客" typeLine2="和" />
                                     <LockedPickCard typeLine1="讓" typeLine2="球" />
@@ -458,8 +418,6 @@ function DetailsMatchPage() {
                                 <DetailsCardComponent
                                     probability={displayData}
                                     tightStackTop={showPredictedScores}
-                                    adminAnalysisEditable={staffCanEditAnalysisDisplay}
-                                    onPatchAdminAnalysis={patchAdminAnalysis}
                                 />
                             ) : accessResolved ? (
                                 <>
@@ -494,7 +452,16 @@ function DetailsMatchPage() {
                             </a>
                         }
 
-
+                        {displayData ? (
+                            <AdminAnalysisHeaderToolbar
+                                visible={Boolean(
+                                    accessResolved &&
+                                        staffCanEditAnalysisDisplay,
+                                )}
+                                displayData={displayData}
+                                patchAdminAnalysis={patchAdminAnalysis}
+                            />
+                        ) : null}
 
                         <div style={{ height: 30 }} />
 

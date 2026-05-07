@@ -1,19 +1,15 @@
 import { useTranslation } from "react-i18next";
-import type { AdminAnalysisEdits, Probability } from "../../../models/probability";
+import type { Probability } from "../../../models/probability";
 import ThemedText from "../../../components/themedText";
 import AppAssets from "../../../ultis/assets";
 import AppColors from "../../../ultis/colors";
 import { getTeamNameInCurrentLanguage } from "../../../ultis/languageUtils";
 import Crown from "../../../components/crown";
-import { HiCheck, HiPencil, HiX } from "react-icons/hi";
-import { useEffect, useState } from "react";
 
 interface Props {
     probability: Probability;
     /** Less margin above first card (e.g. after 預測比分 panel). */
     tightStackTop?: boolean;
-    adminAnalysisEditable?: boolean;
-    onPatchAdminAnalysis?: (partial: Partial<AdminAnalysisEdits>) => Promise<void>;
 }
 
 function formatStatWinRateShowing(override: string | undefined, fallbackBase: string | number): string {
@@ -24,93 +20,9 @@ function formatStatWinRateShowing(override: string | undefined, fallbackBase: st
     return o.endsWith("%") ? o : `${o.replace(/%/g, "")}%`;
 }
 
-function EditableWinRateBig({
-    display,
-    enabled,
-    onSave,
-}: {
-    display: string;
-    enabled: boolean;
-    onSave?: (value: string) => Promise<void>;
-}) {
-    const [editing, setEditing] = useState(false);
-    const [draft, setDraft] = useState(display.replace(/%/g, ""));
-    const [busy, setBusy] = useState(false);
-    useEffect(() => {
-        if (!editing) setDraft(display.replace(/%/g, ""));
-    }, [display, editing]);
-
-    async function confirm() {
-        if (!onSave) return;
-        setBusy(true);
-        try {
-            await onSave(draft.trim());
-            setEditing(false);
-        } catch {
-            //
-        } finally {
-            setBusy(false);
-        }
-    }
-
-    const coreClass = "sm:text-4xl text-2xl h-19 font-bold text-black text-center flex items-center justify-center gap-0.5";
-
-    if (!enabled || !onSave) {
-        return (
-            <p className={coreClass}>
-                {display}
-            </p>
-        );
-    }
-
-    if (editing) {
-        return (
-            <div className="flex flex-col items-center gap-1 w-full min-w-0">
-                <input
-                    type="text"
-                    inputMode="decimal"
-                    className="w-full max-w-[4.5rem] rounded border border-gray-400 px-1 py-0.5 text-center text-lg font-bold text-black"
-                    value={draft}
-                    disabled={busy}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter") void confirm();
-                        if (e.key === "Escape") setEditing(false);
-                    }}
-                    autoFocus
-                />
-                <div className="flex gap-2">
-                    <button type="button" className="p-0.5 text-green-700" disabled={busy} onClick={() => void confirm()} aria-label="Save">
-                        <HiCheck className="h-5 w-5" />
-                    </button>
-                    <button type="button" className="p-0.5 text-red-600" disabled={busy} onClick={() => setEditing(false)} aria-label="Cancel">
-                        <HiX className="h-5 w-5" />
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className={`${coreClass}`}>
-            <span>{display}</span>
-            <button
-                type="button"
-                className="p-0.5 rounded text-gray-700 hover:bg-gray-100 shrink-0"
-                aria-label="Edit win rate stat"
-                onClick={() => setEditing(true)}
-            >
-                <HiPencil className="h-4 w-4" />
-            </button>
-        </div>
-    );
-}
-
 function DetailsCardComponent({
     probability,
     tightStackTop,
-    adminAnalysisEditable,
-    onPatchAdminAnalysis,
 }: Props) {
     const { t } = useTranslation();
     const ae = probability.adminAnalysisEdits;
@@ -186,7 +98,8 @@ function DetailsCardComponent({
     const awayStatShow = formatStatWinRateShowing(ae?.statsWinRateDisplay?.away, awayWinRate);
 
     const topSpacer = tightStackTop ? "mt-2" : "mt-5";
-    const canEdit = Boolean(adminAnalysisEditable && onPatchAdminAnalysis);
+    const winRateClass =
+        "sm:text-4xl text-2xl min-h-[2.5rem] font-bold text-black text-center flex items-center justify-center";
 
     return (
         <div className="w-full flex justify-center items-center flex-col">
@@ -197,14 +110,6 @@ function DetailsCardComponent({
                         name={getTeamNameInCurrentLanguage(probability.homeLanguages, probability.homeTeamName)}
                         img={probability.homeTeamLogo}
                         probility={pillHome}
-                        editablePill={canEdit}
-                        onCommitPill={
-                            canEdit
-                                ? async (n) => {
-                                      await onPatchAdminAnalysis!({ iaWinPctDisplay: { home: n } });
-                                  }
-                                : undefined
-                        }
                     />
                 </div>
 
@@ -232,17 +137,7 @@ function DetailsCardComponent({
                     </div>
                     <div className="h-12 bg-black/50 w-[2px]" />
                     <div >
-                        <EditableWinRateBig
-                            display={homeStatShow}
-                            enabled={canEdit}
-                            onSave={
-                                canEdit
-                                    ? async (raw) => {
-                                          await onPatchAdminAnalysis!({ statsWinRateDisplay: { home: raw } });
-                                      }
-                                    : undefined
-                            }
-                        />
+                        <p className={winRateClass}>{homeStatShow}</p>
                         <p className="sm:text-[10px] h-1 text-xs font-bold text-black/50 text-center">
                             {t("WIN_RATE")}
                         </p>
@@ -257,14 +152,6 @@ function DetailsCardComponent({
                         name={getTeamNameInCurrentLanguage(probability.awayLanguages, probability.awayTeamName)}
                         img={probability.awayTeamLogo}
                         probility={pillAway}
-                        editablePill={canEdit}
-                        onCommitPill={
-                            canEdit
-                                ? async (n) => {
-                                      await onPatchAdminAnalysis!({ iaWinPctDisplay: { away: n } });
-                                  }
-                                : undefined
-                        }
                     />
                 </div>
 
@@ -292,17 +179,7 @@ function DetailsCardComponent({
                     </div>
                     <div className="h-12 bg-black/50 w-[2px]" />
                     <div >
-                        <EditableWinRateBig
-                            display={awayStatShow}
-                            enabled={canEdit}
-                            onSave={
-                                canEdit
-                                    ? async (raw) => {
-                                          await onPatchAdminAnalysis!({ statsWinRateDisplay: { away: raw } });
-                                      }
-                                    : undefined
-                            }
-                        />
+                        <p className={winRateClass}>{awayStatShow}</p>
                         <p className="sm:text-[10px] h-1 text-xs font-bold text-black/50 text-center">
                             {t("WIN_RATE")}
                         </p>
@@ -320,8 +197,6 @@ interface PropsCard {
     name: string;
     probility: number;
     condition?: string;
-    editablePill?: boolean;
-    onCommitPill?: (n: number) => Promise<void>;
 }
 
 function Card({
@@ -329,36 +204,9 @@ function Card({
     name,
     probility,
     condition,
-    editablePill,
-    onCommitPill,
 }: PropsCard) {
-    const [pillEditing, setPillEditing] = useState(false);
-    const [draft, setDraft] = useState(String(Math.round(probility)));
-    const [busy, setBusy] = useState(false);
-
-    useEffect(() => {
-        if (!pillEditing) setDraft(String(Math.round(probility)));
-    }, [probility, pillEditing]);
 
     const showCondition = condition != null && condition.replace(".0", "").trim() !== "" && condition.replace(".0", "").trim() !== "0";
-
-    async function confirmPill() {
-        if (!onCommitPill) return;
-        const n = Math.round(Number(draft));
-        if (!Number.isFinite(n)) return;
-        const clamped = Math.max(0, Math.min(100, n));
-        setBusy(true);
-        try {
-            await onCommitPill(clamped);
-            setPillEditing(false);
-        } catch {
-            //
-        } finally {
-            setBusy(false);
-        }
-    }
-
-    const canPillEdit = Boolean(editablePill && onCommitPill);
 
     return <div style={{ flexDirection: "row" }}>
 
@@ -399,63 +247,24 @@ function Card({
                     </ThemedText> : undefined
             }
 
+            <div className="w-12 h-10 rounded-lg flex ml-4"
+                style={{ backgroundColor: AppColors.primary, alignItems: "center", justifyContent: "center", justifyItems: "center" }}>
 
-            {pillEditing ? (
-                <div className="flex flex-row items-center ml-4 gap-1">
-                    <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        className="w-12 rounded border border-gray-400 px-1 py-0.5 text-sm text-black font-bold"
-                        disabled={busy}
-                        value={draft}
-                        onChange={(e) => setDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter") void confirmPill();
-                            if (e.key === "Escape") setPillEditing(false);
-                        }}
-                        autoFocus
-                    />
-                    <button type="button" className="p-0.5 text-green-700" disabled={busy} onClick={() => void confirmPill()} aria-label="Save">
-                        <HiCheck className="h-5 w-5" />
-                    </button>
-                    <button type="button" className="p-0.5 text-red-600" disabled={busy} onClick={() => setPillEditing(false)} aria-label="Cancel">
-                        <HiX className="h-5 w-5" />
-                    </button>
-                </div>
-            ) : (
-                <>
-                    <div className="w-12 h-10 rounded-lg flex ml-4"
-                        style={{ backgroundColor: AppColors.primary, alignItems: "center", justifyContent: "center", justifyItems: "center" }}>
+                <ThemedText
+                    className="font-bold text-[12px] sm:text-[18px] leading-tight"
+                    type="defaultSemiBold"
+                    style={{
+                        color: "white",
+                    }}
+                >
+                    {`${probility.toFixed(0)}%`}
+                </ThemedText>
 
-                        <ThemedText
-                            className="font-bold text-[12px] sm:text-[18px] leading-tight"
-                            type="defaultSemiBold"
-                            style={{
-                                color: "white",
-                            }}
-                        >
-                            {`${probility.toFixed(0)}%`}
-                        </ThemedText>
+            </div>
 
-                    </div>
+            <div className="w-2.5 shrink-0" />
 
-                    {canPillEdit ? (
-                        <button
-                            type="button"
-                            className="ml-1 p-1 rounded text-gray-900 hover:bg-gray-200"
-                            aria-label="Edit headline win probability"
-                            onClick={() => setPillEditing(true)}
-                        >
-                            <HiPencil className="h-4 w-4" />
-                        </button>
-                    ) : (
-                        <div style={{ width: 10 }} />
-                    )}
-                    {probility > 70 && <Crown winRate={probility} />}
-                </>
-            )}
-
+            {probility > 70 && <Crown winRate={probility} />}
 
         </div>
     </div>;
