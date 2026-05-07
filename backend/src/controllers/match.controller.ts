@@ -1864,6 +1864,18 @@ class MatchController {
                 (a, b) => (kickOffStringToMs(b.kickOff) ?? 0) - (kickOffStringToMs(a.kickOff) ?? 0)
             );
 
+            // Same logo backfill as GET /match-data (FootyLogic enrich alone often misses logos).
+            for (const r of rows) {
+                const ko = r.kickOff;
+                if (typeof ko === "string" && ko.trim()) {
+                    (r as any).kickOffDate = ko.includes("T") ? ko.split("T")[0] : ko.split(" ")[0];
+                }
+            }
+            await fetchLogosForList(rows as any);
+            for (const r of rows) {
+                delete (r as any).kickOffDate;
+            }
+
             return res.json({
                 timezone: "Asia/Hong_Kong",
                 window: { start: startYmd, end: endYmd, today: todayHkt },

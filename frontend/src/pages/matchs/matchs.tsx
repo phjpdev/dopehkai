@@ -19,6 +19,7 @@ import { featuredSetForDayMatches } from "../../ultis/vvvipFeaturedMatches";
 import { useCanSeeVvvipFeaturedContent } from "../../hooks/useVvvipFeaturedMarkers";
 import API from "../../api/api";
 import { pastResultRowToMatch, type PastResultListRow } from "../../ultis/pastResultsToMatchList";
+import { annotateMatchesWithAdminDailyEditable } from "../../ultis/adminDailyEditableMatches";
 
 
 function MatchsPage() {
@@ -69,11 +70,15 @@ function MatchsPage() {
                 }
             }
         }
-        return base.map((m: Match) => {
+        const withIa = base.map((m: Match) => {
             const id = m.id || (m as any).eventId;
             const ia = id && analysisMap?.[id] ? analysisMap[id] : m.ia;
             return { ...m, ia };
         });
+        // Past fixtures merged above were never annotated on the server; re-run the same
+        // deterministic daily pair logic on the full list so staff see the pencil on /matches.
+        annotateMatchesWithAdminDailyEditable(withIa);
+        return withIa;
     }, [data, analysisMap, isStaffList, pastTwoDaysPayload?.matches]);
 
     useEffect(() => {
