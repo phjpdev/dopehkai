@@ -54,8 +54,10 @@ export async function fetchLogosForList(list: MatchItem[]): Promise<MatchItem[]>
     const matchForFixture = {
       id: m.id,
       kickOffDate: m.kickOffDate || m.kickOffDateLocal,
-      homeTeamNameEn: m.homeTeamNameEn || "",
-      awayTeamNameEn: m.awayTeamNameEn || "",
+      homeTeamNameEn: m.homeTeamNameEn || m.homeTeamName || "",
+      awayTeamNameEn: m.awayTeamNameEn || m.awayTeamName || "",
+      homeTeamName: m.homeTeamName,
+      awayTeamName: m.awayTeamName,
     };
     const fixture = await GetFixture(matchForFixture as any);
     if (fixture && (fixture.homeLogo || fixture.awayLogo)) {

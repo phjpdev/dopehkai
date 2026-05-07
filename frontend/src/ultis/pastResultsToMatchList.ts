@@ -40,6 +40,15 @@ function emptyLastGames(): LastGames {
     };
 }
 
+/** Prefer Chinese-style list name, then English (analysis stubs often only have one). */
+function displayTeamLabel(zh?: string, en?: string): string {
+    for (const c of [zh, en]) {
+        const t = (c ?? "").trim();
+        if (t && t !== "—") return t;
+    }
+    return "—";
+}
+
 export interface PastResultListRow {
     id: string;
     kickOff: string;
@@ -60,12 +69,14 @@ export function pastResultRowToMatch(row: PastResultListRow): Match {
     const fallbackLogo = AppAssets.logo_black;
     const homeLogo = row.homeTeamLogo?.trim() || fallbackLogo;
     const awayLogo = row.awayTeamLogo?.trim() || fallbackLogo;
+    const homeLabel = displayTeamLabel(row.homeTeamName, row.homeTeamNameEn);
+    const awayLabel = displayTeamLabel(row.awayTeamName, row.awayTeamNameEn);
     return {
         id: row.id,
         eventId: row.id,
         matchDateFormated: "",
-        homeTeamName: row.homeTeamName || "—",
-        awayTeamName: row.awayTeamName || "—",
+        homeTeamName: homeLabel,
+        awayTeamName: awayLabel,
         kickOff: row.kickOff,
         kickOffTime: "",
         kickOffDate: "",
@@ -90,8 +101,8 @@ export function pastResultRowToMatch(row: PastResultListRow): Match {
         awayTeamImgUrl: null,
         homeTeamId: 0,
         awayTeamId: 0,
-        homeLanguages: { zh: row.homeTeamName },
-        awayLanguages: { zh: row.awayTeamName },
+        homeLanguages: { zh: homeLabel, en: row.homeTeamNameEn || homeLabel },
+        awayLanguages: { zh: awayLabel, en: row.awayTeamNameEn || awayLabel },
         lastGames: emptyLastGames(),
         ia: row.ia,
     };

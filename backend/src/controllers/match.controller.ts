@@ -120,6 +120,19 @@ function teamFieldCoalesce(fromMatch: string | undefined, fromAlt: unknown, fall
     return fallback;
 }
 
+/** Card display: prefer zh-style name, then EN; analysis docs often only persist IA + kickoff, so EN/md fills gaps. */
+function coalesceTeamDisplayName(
+    primary?: string,
+    secondary?: string,
+    ...more: (string | undefined)[]
+): string {
+    for (const c of [primary, secondary, ...more]) {
+        const t = (c ?? "").trim();
+        if (t && t !== "—") return t;
+    }
+    return "";
+}
+
 /** FootyLogic games list has no logos; HKJC may delete `matches` — fetch banner/details for cards + analysis stubs. */
 async function enrichMatchFromFootyDetailsIfSparse(id: string, m: Match): Promise<Match> {
     const badName = (s?: string) => !s || !s.trim() || s.trim() === "—";
@@ -139,7 +152,7 @@ async function enrichMatchFromFootyDetailsIfSparse(id: string, m: Match): Promis
         const awayLogo = d.awayTeamLogo ? Global.footylogicImg + d.awayTeamLogo + ".png" : m.awayTeamLogo;
         const homeName = badName(m.homeTeamName) ? d.homeTeamName || m.homeTeamName : m.homeTeamName;
         const awayName = badName(m.awayTeamName) ? d.awayTeamName || m.awayTeamName : m.awayTeamName;
-        return {
+        const next: Match = {
             ...m,
             homeTeamName: homeName || m.homeTeamName,
             awayTeamName: awayName || m.awayTeamName,
@@ -151,6 +164,13 @@ async function enrichMatchFromFootyDetailsIfSparse(id: string, m: Match): Promis
             awayTeamId: m.awayTeamId || d.awayTeamId,
             competitionName: m.competitionName || d.competitionName || "",
         } as Match;
+        if (badName(next.homeTeamName) && !badName(next.homeTeamNameEn)) {
+            next.homeTeamName = next.homeTeamNameEn!;
+        }
+        if (badName(next.awayTeamName) && !badName(next.awayTeamNameEn)) {
+            next.awayTeamName = next.awayTeamNameEn!;
+        }
+        return next;
     } catch {
         return m;
     }
@@ -1659,11 +1679,25 @@ class MatchController {
                 geminiMessage: string | undefined,
                 ia: ResultIA | undefined
             ) => {
+                const homeLangZh = data.homeLanguages?.zh;
+                const awayLangZh = data.awayLanguages?.zh;
+                const homeDisplay = coalesceTeamDisplayName(
+                    data.homeTeamName,
+                    data.homeTeamNameEn,
+                    homeLangZh,
+                    data.homeLanguages?.en
+                );
+                const awayDisplay = coalesceTeamDisplayName(
+                    data.awayTeamName,
+                    data.awayTeamNameEn,
+                    awayLangZh,
+                    data.awayLanguages?.en
+                );
                 rows.push({
                     id,
                     kickOff: data.kickOff,
-                    homeTeamName: data.homeTeamName ?? "",
-                    awayTeamName: data.awayTeamName ?? "",
+                    homeTeamName: homeDisplay,
+                    awayTeamName: awayDisplay,
                     homeTeamNameEn: data.homeTeamNameEn,
                     awayTeamNameEn: data.awayTeamNameEn,
                     homeTeamLogo: typeof data.homeTeamLogo === "string" ? data.homeTeamLogo : undefined,
