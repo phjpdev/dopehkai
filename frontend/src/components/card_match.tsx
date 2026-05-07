@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { FaBasketball } from "react-icons/fa6";
 import { FaFutbol } from "react-icons/fa";
-import { HiPencil } from "react-icons/hi";
 import { NavigateFunction } from "react-router-dom";
 import { Match } from "../models/match";
 import { useTranslation } from "react-i18next";
@@ -20,8 +19,6 @@ export type Props = {
     showFormBadges?: boolean
     /** VVVIP/admin: marks one of the two daily “featured” matches (預測比分 on detail). */
     showVvvipFeaturedMarker?: boolean
-    /** Match list only: admin/subadmin daily-editable pair marker (bottom-left). */
-    showAdminDailyEditableIndicator?: boolean
     match: Match | Probability
     navigate: NavigateFunction
 };
@@ -51,7 +48,6 @@ export function CardMatch({
     crownPosition = "centerRight",
     showFormBadges = false,
     showVvvipFeaturedMarker = false,
-    showAdminDailyEditableIndicator = false,
     navigate,
     match,
 }: Props) {
@@ -128,7 +124,7 @@ export function CardMatch({
                         <span className="text-[10px] sm:text-xs font-semibold mt-0.5">{month.toUpperCase()}</span>
                     </div>
 
-                    {/* Main content — relative for absolute corner markers (crowns, VVVIP balls, list edit hint) */}
+                    {/* Main content — relative for absolute corner markers (crowns, VVVIP balls) */}
                     <div className="relative flex flex-1 items-center justify-between py-3 px-2 sm:px-4 gap-1">
                         {higherWinRate > 70 && crownPosition === "cardTopRight" && (
                             <div className="absolute top-1 right-2 sm:top-1.5 sm:right-3 z-10 pointer-events-none flex items-center">
@@ -229,16 +225,6 @@ export function CardMatch({
                             </p>
                             {showFormBadges ? <FormBadges form={awayForm} /> : null}
                         </div>
-
-                        {showAdminDailyEditableIndicator && (
-                            <div
-                                className="pointer-events-none absolute bottom-1 left-1 z-10 sm:bottom-1.5 sm:left-2"
-                                title="可編輯此場分析顯示"
-                                aria-hidden
-                            >
-                                <HiPencil className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-neutral-900 drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]" />
-                            </div>
-                        )}
 
                         {showVvvipFeaturedMarker && (
                             <div

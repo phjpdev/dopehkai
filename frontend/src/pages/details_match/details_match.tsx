@@ -10,8 +10,8 @@ import ThemedText from "../../components/themedText";
 import AppGlobal from "../../ultis/global";
 import API from "../../api/api";
 import { Probability, AdminAnalysisEdits, PickResult } from "../../models/probability";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import useAuthStore from "../../store/userAuthStore";
 import HeaderDetailsComponent from "./components/header_details";
@@ -22,10 +22,6 @@ import DetailsCardComponent from "./components/details_card";
 import LockedAnalysisCard from "./components/locked_analysis_card";
 import PredictedScoresPanel from "./components/predicted_scores_panel";
 import { useCanSeeVvvipFeaturedContent, useVvvipFeaturedIdsForDay } from "../../hooks/useVvvipFeaturedMarkers";
-import { useMatchs } from "../../hooks/userMatchs";
-import { Match } from "../../models/match";
-import { pastResultRowToMatch, type PastResultListRow } from "../../ultis/pastResultsToMatchList";
-import { buildAdminDailyEditableIdSet } from "../../ultis/adminDailyEditableMatches";
 import { AdminAnalysisHeaderToolbar } from "./components/admin_analysis_header_toolbar";
 
 function pickConfidence(p: { confidence: number } | undefined, rawCode: string | undefined): number {
@@ -65,44 +61,6 @@ function DetailsMatchPage() {
     const featuredMatchIds = useVvvipFeaturedIdsForDay(data?.kickOff);
 
     const isStaff = userRole === "admin" || userRole === "subadmin";
-
-    const { data: matchListData } = useMatchs();
-    const { data: pastTwoDaysPayload } = useQuery({
-        queryKey: ["adminPastTwoDaysForMatchList", "skipGemini"],
-        queryFn: async () => {
-            const res = await API.GET(
-                `${AppGlobal.baseURL}match/past-results?skipGemini=true`,
-                {},
-                60000
-            );
-            if (res.status !== 200) {
-                return { matches: [] as PastResultListRow[] };
-            }
-            return res.data as { matches: PastResultListRow[] };
-        },
-        enabled: isStaff,
-        staleTime: 5 * 60 * 1000,
-        refetchOnWindowFocus: false,
-    });
-
-    const staffDailyEditableIdSet = useMemo(() => {
-        if (!isStaff || !matchListData || !Array.isArray(matchListData)) {
-            return new Set<string>();
-        }
-        let base = [...matchListData] as Match[];
-        const pastRows = pastTwoDaysPayload?.matches ?? [];
-        if (pastRows.length > 0) {
-            const seen = new Set(base.map((m) => String(m.id || (m as Match & { eventId?: string }).eventId)));
-            for (const row of pastRows) {
-                const rowId = String(row.id);
-                if (!seen.has(rowId)) {
-                    seen.add(rowId);
-                    base.push(pastResultRowToMatch(row));
-                }
-            }
-        }
-        return buildAdminDailyEditableIdSet(base);
-    }, [isStaff, matchListData, pastTwoDaysPayload?.matches]);
 
     /** VIP status known; if user is VIP, VVIP check must finish too before rendering pick rows */
     const accessResolved =
@@ -230,14 +188,8 @@ function DetailsMatchPage() {
     const iaP = displayData?.ia;
     const goalsRaw = iaP?.picks?.goals?.bestPick ?? iaP?.bestPick;
 
-    /** Same deterministic pair as /matches pencil — only those fixtures get the edit UI. */
-    const staffCanEditAnalysisDisplay = !!(
-        id &&
-        isStaff &&
-        displayData?.ia &&
-        canSeeAllFourPicks &&
-        staffDailyEditableIdSet.has(String(id))
-    );
+    /** Admin/subadmin: bottom modal can edit displayed analysis for any fixture (see PATCH admin-analysis). */
+    const staffCanEditAnalysisDisplay = !!(id && isStaff && displayData?.ia && canSeeAllFourPicks);
 
     async function patchAdminAnalysis(partial: Partial<AdminAnalysisEdits>): Promise<void> {
         if (!id) return;

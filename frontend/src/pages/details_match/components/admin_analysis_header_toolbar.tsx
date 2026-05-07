@@ -15,6 +15,13 @@ const ROWS: { key: PickKey; line1: string; line2: string }[] = [
     { key: "corners", line1: "角球", line2: "大細" },
 ];
 
+const MODAL_INPUT_CLASS =
+    "w-full rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm text-black caret-black placeholder:text-neutral-500";
+
+/** Stop OS dark mode from styling native inputs as dark-on-dark inside this light-themed modal. */
+const MODAL_PANEL_CLASS =
+    "max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-4 text-black shadow-xl [color-scheme:light] sm:rounded-2xl sm:p-5";
+
 function baselineLabel(key: PickKey, ia?: ResultIA): string {
     const p = ia?.picks?.[key];
     const raw =
@@ -272,7 +279,7 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
                     type="button"
                     disabled={busy}
                     onClick={() => setModalOpen(true)}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black shadow-md ring-1 ring-black/10 hover:bg-neutral-50"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black shadow-md [color-scheme:light] ring-1 ring-black/10 hover:bg-neutral-50"
                 >
                     <span className="text-center leading-snug">{openModalLabel}</span>
                     <HiChevronRight className="h-5 w-5 shrink-0" aria-hidden />
@@ -289,7 +296,7 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="match-analysis-modal-title"
-                        className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-4 shadow-xl sm:rounded-2xl sm:p-5"
+                        className={MODAL_PANEL_CLASS}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <h2 id="match-analysis-modal-title" className="mb-3 text-center text-base font-bold text-black">
@@ -313,7 +320,7 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
                                 <label className="flex min-w-0 flex-1 flex-col gap-1">
                                     <span className="text-[10px] text-neutral-500">分析</span>
                                     <input
-                                        className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-black"
+                                        className={MODAL_INPUT_CLASS}
                                         value={text[key]}
                                         disabled={busy}
                                         onChange={(e) =>
@@ -327,7 +334,7 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
                                         type="number"
                                         min={0}
                                         max={100}
-                                        className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-black"
+                                        className={MODAL_INPUT_CLASS}
                                         value={pct[key]}
                                         disabled={busy}
                                         onChange={(e) =>
@@ -354,7 +361,7 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
                                     type="number"
                                     min={0}
                                     max={100}
-                                    className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-black"
+                                    className={MODAL_INPUT_CLASS}
                                     value={homePill}
                                     disabled={busy}
                                     onChange={(e) =>
@@ -372,7 +379,7 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
                                     type="number"
                                     min={0}
                                     max={100}
-                                    className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-black"
+                                    className={MODAL_INPUT_CLASS}
                                     value={awayPill}
                                     disabled={busy}
                                     onChange={(e) =>
@@ -387,7 +394,7 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
                             <label className="flex flex-col gap-1">
                                 <span className="text-[10px] text-neutral-500">{homeTeamLabel} — 統計勝率顯示</span>
                                 <input
-                                    className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-black"
+                                    className={MODAL_INPUT_CLASS}
                                     value={homeStat}
                                     disabled={busy}
                                     placeholder="例如 38 或 38%"
@@ -397,7 +404,7 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
                             <label className="flex flex-col gap-1">
                                 <span className="text-[10px] text-neutral-500">{awayTeamLabel} — 統計勝率顯示</span>
                                 <input
-                                    className="w-full rounded-md border border-neutral-300 px-2 py-1.5 text-sm text-black"
+                                    className={MODAL_INPUT_CLASS}
                                     value={awayStat}
                                     disabled={busy}
                                     placeholder="例如 38 或 38%"
@@ -411,7 +418,7 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
                                 type="button"
                                 disabled={busy}
                                 onClick={() => void save()}
-                                className="flex-1 rounded-lg border border-neutral-300 bg-white py-2.5 font-semibold text-black hover:bg-neutral-50 disabled:opacity-50"
+                                className="flex-1 rounded-lg border border-neutral-300 bg-white py-2.5 font-semibold text-black [color-scheme:light] hover:bg-neutral-50 disabled:opacity-50"
                             >
                                 {saveLabel}
                             </button>
@@ -419,7 +426,7 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
                                 type="button"
                                 disabled={busy}
                                 onClick={() => setModalOpen(false)}
-                                className="rounded-lg border border-neutral-300 px-4 py-2.5 text-sm font-semibold text-black hover:bg-neutral-50"
+                                className="rounded-lg border border-neutral-300 bg-white px-4 py-2.5 text-sm font-semibold text-black [color-scheme:light] hover:bg-neutral-50"
                             >
                                 {closeLabel}
                             </button>

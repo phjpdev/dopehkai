@@ -414,7 +414,6 @@ function MatchsPage() {
                                                         match={m}
                                                         teams={[getTeamNameInCurrentLanguage(m.homeLanguages, m.homeTeamName), getTeamNameInCurrentLanguage(m.awayLanguages, m.awayTeamName)]}
                                                         showVvvipFeaturedMarker={canSeeVvvipFeatured && featuredForSelectedDay.has(String(matchId))}
-                                                        showAdminDailyEditableIndicator={isStaffList && !!m.adminDailyEditableAnalysis}
                                                     />
                                                 </div>
                                             );
@@ -472,7 +471,6 @@ function MatchsPage() {
                                                             match={m}
                                                             teams={[getTeamNameInCurrentLanguage(m.homeLanguages, m.homeTeamName), getTeamNameInCurrentLanguage(m.awayLanguages, m.awayTeamName)]}
                                                             showVvvipFeaturedMarker={canSeeVvvipFeatured && (featuredSetsByDayLabel.get(d)?.has(String(matchId)) ?? false)}
-                                                            showAdminDailyEditableIndicator={isStaffList && !!m.adminDailyEditableAnalysis}
                                                         />
                                                     </div>
                                                 );
