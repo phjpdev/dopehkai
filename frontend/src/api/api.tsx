@@ -128,6 +128,36 @@ export const API = {
         return response;
     },
 
+    async PATCH(url: string, data: any, headers?: any): Promise<AxiosResponse<any, any>> {
+        const token = await this.getToken();
+        const _headers = headers ?? {};
+        var response: any;
+        await axios.patch(url, data, {
+            withCredentials: true,
+            timeout: 30000,
+            headers: {
+                'Content-type': 'application/json; charset=UTF-8',
+                'Authorization': 'Bearer ' + token,
+                ..._headers
+            },
+        }
+        ).then((res) => {
+            response = res;
+        }).catch((error: AxiosError) => {
+            if (axios.isCancel(error)) {
+                error.status = 408;
+                console.log('Request timed out');
+            }
+            response = error.response || {
+                status: error.status || 500,
+                data: error.message,
+                headers: {},
+                config: {},
+            };
+        });
+        return response;
+    },
+
     async PUT(url: string, data: any, headers?: any): Promise<AxiosResponse<any, any>> {
         const token = await this.getToken();
         const _headers = headers ?? {};

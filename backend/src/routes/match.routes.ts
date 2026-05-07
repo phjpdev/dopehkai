@@ -64,6 +64,10 @@ matchRouter.get('/match-analyze/:id', async (req, res) => {
     await MatchController.analyzeMatch(req, res);
 });
 
+matchRouter.patch('/admin-analysis/:id', authenticateAdmin, async (req, res) => {
+    await MatchController.patchAdminAnalysis(req, res);
+});
+
 matchRouter.get('/match-data/generate/:id',
     async (req, res) => {
         await MatchController.excelGenerate(req, res);

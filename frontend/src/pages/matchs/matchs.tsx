@@ -7,6 +7,7 @@ import { useMatchs } from "../../hooks/userMatchs";
 import { useMatchAnalysis } from "../../hooks/useMatchAnalysis";
 import { Match } from "../../models/match";
 import { Loading } from "../../components/loading";
+import AppGlobal from "../../ultis/global";
 import { useNavigate } from "react-router-dom";
 import useAuthStore from "../../store/userAuthStore";
 import { useTranslation } from "react-i18next";
@@ -16,7 +17,6 @@ import AppAssets from "../../ultis/assets";
 import { getTeamNameInCurrentLanguage } from "../../ultis/languageUtils";
 import { featuredSetForDayMatches } from "../../ultis/vvvipFeaturedMatches";
 import { useCanSeeVvvipFeaturedContent } from "../../hooks/useVvvipFeaturedMarkers";
-import AppGlobal from "../../ultis/global";
 import API from "../../api/api";
 import { pastResultRowToMatch, type PastResultListRow } from "../../ultis/pastResultsToMatchList";
 
@@ -30,7 +30,7 @@ function MatchsPage() {
     const { userRole } = useAuthStore();
     const canSeeVvvipFeatured = useCanSeeVvvipFeaturedContent();
 
-    const { data, isLoading, error } = useMatchs();
+    const { data, error, refetch, isPending, isError } = useMatchs();
     const { data: analysisMap } = useMatchAnalysis();
 
     const isStaffList = userRole === "admin" || userRole === "subadmin";
@@ -237,10 +237,41 @@ function MatchsPage() {
         return datasUnicas;
     }
 
+    const errMsg =
+        error instanceof Error
+            ? error.message
+            : typeof error === "string"
+              ? error
+              : t("matchesLoadFailed") !== "matchesLoadFailed"
+                ? t("matchesLoadFailed")
+                : "Could not load fixtures. Check that the API is reachable.";
+
     return (
-        error ?
-            <Loading />
-            : isLoading
+        isError ? (
+                <div className="relative flex min-h-[100dvh] w-full flex-col items-center justify-center bg-black px-6 pt-24 text-center">
+                    <div
+                        className="mb-10 h-40 w-40 bg-contain bg-center bg-no-repeat sm:h-52 sm:w-52"
+                        style={{ backgroundImage: `url(${AppAssets.logo})` }}
+                        aria-hidden
+                    />
+                    <ThemedText type="subtitle" className="mb-4 max-w-md text-white text-base leading-snug">
+                        {errMsg}
+                    </ThemedText>
+                    <p className="mb-10 max-w-md text-sm leading-relaxed text-white/65">
+                        {t("matchesLoadHint") !== "matchesLoadHint"
+                            ? t("matchesLoadHint")
+                            : <>Expected API base URL: <code className="text-white/90">{AppGlobal.baseURL}</code>. Start the backend (e.g. port 4000) and reload.</>}
+                    </p>
+                    <button
+                        type="button"
+                        className="rounded-xl bg-[#eab308] px-8 py-3 font-semibold text-black hover:opacity-90 active:opacity-80"
+                        onClick={() => void refetch()}
+                    >
+                        {t("retry") !== "retry" ? t("retry") : "Retry"}
+                    </button>
+                </div>
+            )
+            : isPending
                 ?
                 <Loading />
                 : <div className="relative flex h-[100dvh] w-full max-w-full flex-col overflow-hidden">
@@ -378,6 +409,7 @@ function MatchsPage() {
                                                         match={m}
                                                         teams={[getTeamNameInCurrentLanguage(m.homeLanguages, m.homeTeamName), getTeamNameInCurrentLanguage(m.awayLanguages, m.awayTeamName)]}
                                                         showVvvipFeaturedMarker={canSeeVvvipFeatured && featuredForSelectedDay.has(String(matchId))}
+                                                        showAdminDailyEditableIndicator={isStaffList && !!m.adminDailyEditableAnalysis}
                                                     />
                                                 </div>
                                             );
@@ -435,6 +467,7 @@ function MatchsPage() {
                                                             match={m}
                                                             teams={[getTeamNameInCurrentLanguage(m.homeLanguages, m.homeTeamName), getTeamNameInCurrentLanguage(m.awayLanguages, m.awayTeamName)]}
                                                             showVvvipFeaturedMarker={canSeeVvvipFeatured && (featuredSetsByDayLabel.get(d)?.has(String(matchId)) ?? false)}
+                                                            showAdminDailyEditableIndicator={isStaffList && !!m.adminDailyEditableAnalysis}
                                                         />
                                                     </div>
                                                 );

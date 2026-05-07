@@ -48,6 +48,8 @@ export interface Match {
   leagueCode?: string
   /** HKJC tournament nameProfileId for flag image URL */
   leagueNameProfileId?: string
+  /** Server: deterministic daily pair — admin may edit displayed analysis labels */
+  adminDailyEditableAnalysis?: boolean
 }
 
 export interface LastGames {

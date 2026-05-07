@@ -58,7 +58,7 @@ const corsOptions = {
         }
     },
     credentials: true, // Required when using withCredentials: true in frontend
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma'],
 };
 

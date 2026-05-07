@@ -26,6 +26,10 @@ import { cacheGet, cacheSet, cacheDel, CacheKeys } from "../cache/redis";
 import { runAnalysisBatch } from "../service/analysisWorker";
 import { fetchLogosForList } from "../service/fetchLogosForList";
 import { getAdminPastTwoDaysWindowHkt, kickOffStringToMs } from "../service/analysisRetention";
+import {
+    annotateMatchesWithAdminDailyEditable,
+    isMatchAdminDailyEditable,
+} from "../service/adminDailyEditableMatches";
 
 /** Map FootyLogic list event → Firestore match fields (HKJC sync removes finished games; past-results needs this). */
 function footyEventToMatchPartial(ev: Event): Partial<Match> {
@@ -153,6 +157,19 @@ async function enrichMatchFromFootyDetailsIfSparse(id: string, m: Match): Promis
 }
 
 class MatchController {
+    private static async attachAdminDailyEditableToMatch(match: any): Promise<void> {
+        if (!match) return;
+        const id = String(match.id || match.eventId || "");
+        const ko = match.kickOff;
+        if (!id || !ko) {
+            match.adminDailyEditableAnalysis = false;
+            return;
+        }
+        let list = (await cacheGet<any[]>(CacheKeys.matchesList(false))) ?? [];
+        if (list.length === 0) list = (await cacheGet<any[]>(CacheKeys.matchesList(true))) ?? [];
+        match.adminDailyEditableAnalysis = isMatchAdminDailyEditable(id, ko, list);
+    }
+
     static async getMatchResults() {
         console.log("START....")
         const matchesCol = collection(db, Tables.matches);
@@ -422,6 +439,7 @@ class MatchController {
                 const cached = await cacheGet<any[]>(CacheKeys.matchesList(false));
                 if (cached && Array.isArray(cached) && cached.length > 0) {
                     cached.forEach(fillListIAFromPredictions);
+                    annotateMatchesWithAdminDailyEditable(cached);
                     if (!res.headersSent) return res.json(cached);
                     return;
                 }
@@ -544,6 +562,7 @@ class MatchController {
 
             // Fetch logos for matches that don't have them (api-sports.io via GetFixture), like topx-betting-mern
             const listWithLogos = await fetchLogosForList(futureMatches);
+            annotateMatchesWithAdminDailyEditable(listWithLogos);
 
             // Short TTL (60s) so list stays in sync with HKJC; avoids stale "extra" dates from Redis
             await cacheSet(CacheKeys.matchesList(refresh), listWithLogos, 60);
@@ -702,6 +721,7 @@ class MatchController {
                         // Return partial data now, enrich in background
                         setImmediate(() => this.enrichMatchInBackground(id));
                     }
+                    await MatchController.attachAdminDailyEditableToMatch(cached);
                     return res.json(cached);
                 }
             }
@@ -722,6 +742,7 @@ class MatchController {
                         // Return partial data now, enrich in background
                         setImmediate(() => this.enrichMatchInBackground(id));
                     }
+                    await MatchController.attachAdminDailyEditableToMatch(existingMatchData);
                     return res.json(existingMatchData);
                 } else {
                     const analysisOnly = await MatchController.tryBuildMatchFromAnalysisDoc(id);
@@ -730,6 +751,7 @@ class MatchController {
                         syncFormFieldsFromLastGames(analysisOnly);
                         await cacheSet(CacheKeys.matchDetail(id), analysisOnly, 300);
                         console.log("[getMatchDetails] Returning analysis-only (fixture not in matches collection):", id);
+                        await MatchController.attachAdminDailyEditableToMatch(analysisOnly);
                         return res.json(analysisOnly);
                     }
                     console.log("[getMatchDetails] Match not found in database, fetching from APIs...");
@@ -814,6 +836,7 @@ class MatchController {
                     await cacheDel(CacheKeys.matchesList(true));
                     await cacheSet(CacheKeys.matchDetail(id), minimalMatch, 300);
                     console.log("[getMatchDetails] Returning HKJC-only match (no FootyLogic data):", id);
+                    await MatchController.attachAdminDailyEditableToMatch(minimalMatch);
                     return res.json(minimalMatch);
                 }
                 const analysisOnly = await MatchController.tryBuildMatchFromAnalysisDoc(id);
@@ -822,6 +845,7 @@ class MatchController {
                     syncFormFieldsFromLastGames(analysisOnly);
                     await cacheSet(CacheKeys.matchDetail(id), analysisOnly, 300);
                     console.log("[getMatchDetails] Returning analysis-only after APIs missed (id may be finished / off HKJC):", id);
+                    await MatchController.attachAdminDailyEditableToMatch(analysisOnly);
                     return res.json(analysisOnly);
                 }
                 console.error("[getMatchDetails] Match not found in database, games API, details API, or HKJC");
@@ -833,6 +857,7 @@ class MatchController {
                 // Match exists in DB but not in games API, return DB data
                 console.log("[getMatchDetails] Returning match from database (not found in games API)");
                 syncFormFieldsFromLastGames(existingMatchData);
+                await MatchController.attachAdminDailyEditableToMatch(existingMatchData);
                 return res.json(existingMatchData);
             }
             
@@ -1206,6 +1231,7 @@ class MatchController {
             }
 
             await cacheSet(CacheKeys.matchDetail(id), matchData, 300);
+            await MatchController.attachAdminDailyEditableToMatch(matchData);
             return res.json(matchData);
         } catch (error: any) {
             console.error('[getMatchDetails] Error fetching match details:', error);
@@ -1215,6 +1241,98 @@ class MatchController {
                 error: 'Internal server error',
                 message: error?.message || 'Unknown error',
                 eventId: id
+            });
+        }
+    }
+
+
+    /** Admin/subadmin only: merge display overrides on the match doc (PICK labels, confidence % tiles, headline %, stats). */
+    static async patchAdminAnalysis(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: "Missing id" });
+                return;
+            }
+            const matchRef = doc(db, Tables.matches, id);
+            const snap = await getDoc(matchRef);
+            if (!snap.exists()) {
+                res.status(404).json({ error: "Match not found" });
+                return;
+            }
+            const existing = snap.data() as Match;
+
+            const body = req.body && typeof req.body === "object" ? req.body : {};
+            const pickIn = typeof body.pickDisplay === "object" && body.pickDisplay ? body.pickDisplay : {};
+            const iaIn =
+                typeof body.iaWinPctDisplay === "object" && body.iaWinPctDisplay ? body.iaWinPctDisplay : {};
+            const statIn =
+                typeof body.statsWinRateDisplay === "object" && body.statsWinRateDisplay
+                    ? body.statsWinRateDisplay
+                    : {};
+            const confIn =
+                typeof body.pickConfidenceDisplay === "object" && body.pickConfidenceDisplay
+                    ? body.pickConfidenceDisplay
+                    : {};
+
+            const prev = existing.adminAnalysisEdits || {};
+            const clampPct = (n: unknown): number | undefined => {
+                const x = Number(n);
+                if (!Number.isFinite(x)) return undefined;
+                return Math.round(Math.max(0, Math.min(100, x)) * 100) / 100;
+            };
+
+            const next = {
+                pickDisplay: { ...(prev.pickDisplay || {}) } as NonNullable<Match["adminAnalysisEdits"]>["pickDisplay"],
+                pickConfidenceDisplay: { ...(prev.pickConfidenceDisplay || {}) } as NonNullable<
+                    Match["adminAnalysisEdits"]
+                >["pickConfidenceDisplay"],
+                iaWinPctDisplay: { ...(prev.iaWinPctDisplay || {}) } as NonNullable<
+                    Match["adminAnalysisEdits"]
+                >["iaWinPctDisplay"],
+                statsWinRateDisplay: { ...(prev.statsWinRateDisplay || {}) } as NonNullable<
+                    Match["adminAnalysisEdits"]
+                >["statsWinRateDisplay"],
+            };
+
+            const pickKeys = ["goals", "had", "handicap", "corners"] as const;
+            for (const k of pickKeys) {
+                if (Object.prototype.hasOwnProperty.call(pickIn, k)) {
+                    next.pickDisplay[k] = typeof pickIn[k] === "string" ? pickIn[k] : String(pickIn[k] ?? "");
+                }
+            }
+            if (Object.prototype.hasOwnProperty.call(iaIn, "home")) {
+                const c = clampPct((iaIn as any).home);
+                if (c !== undefined) next.iaWinPctDisplay!.home = c;
+            }
+            if (Object.prototype.hasOwnProperty.call(iaIn, "away")) {
+                const c = clampPct((iaIn as any).away);
+                if (c !== undefined) next.iaWinPctDisplay!.away = c;
+            }
+            if (Object.prototype.hasOwnProperty.call(statIn, "home"))
+                next.statsWinRateDisplay!.home = String((statIn as any).home ?? "");
+            if (Object.prototype.hasOwnProperty.call(statIn, "away"))
+                next.statsWinRateDisplay!.away = String((statIn as any).away ?? "");
+            for (const k of pickKeys) {
+                if (Object.prototype.hasOwnProperty.call(confIn, k)) {
+                    const c = clampPct((confIn as any)[k]);
+                    if (c !== undefined) next.pickConfidenceDisplay![k] = c;
+                }
+            }
+
+            await setDoc(matchRef, { adminAnalysisEdits: next }, { merge: true });
+            await cacheDel(CacheKeys.matchDetail(id));
+            await cacheDel(CacheKeys.matchesList(false));
+            await cacheDel(CacheKeys.matchesList(true));
+
+            const mergedOut: Match = { ...existing, adminAnalysisEdits: next };
+            await MatchController.attachAdminDailyEditableToMatch(mergedOut);
+            res.json(mergedOut);
+        } catch (error: any) {
+            console.error("[patchAdminAnalysis]", error);
+            res.status(500).json({
+                error: "Internal server error",
+                message: error?.message ?? String(error),
             });
         }
     }

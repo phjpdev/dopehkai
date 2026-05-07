@@ -53,6 +53,28 @@ export interface Match {
     analysis_status?: "pending" | "completed"
     /** When AI analysis was last updated; used for stale check (e.g. re-analyze after 1h) */
     analysis_updated_at?: Date | string | null
+    /** Admin-only overrides for analysis display strings and headline win % tiles (see PATCH /match/admin-analysis). */
+    adminAnalysisEdits?: AdminAnalysisEdits
+    /** Present on list/detail JSON: matches the deterministic HK-daily editable pair */
+    adminDailyEditableAnalysis?: boolean
+}
+
+/** Optional display overrides merged by admins for the two daily-editable fixtures. */
+export interface AdminAnalysisEdits {
+    pickDisplay?: Partial<{
+        goals: string;
+        had: string;
+        handicap: string;
+        corners: string;
+    }>;
+    pickConfidenceDisplay?: Partial<{
+        goals: number;
+        had: number;
+        handicap: number;
+        corners: number;
+    }>;
+    iaWinPctDisplay?: Partial<{ home: number; away: number }>;
+    statsWinRateDisplay?: Partial<{ home: string; away: string }>;
 }
 
 export interface PickResult {

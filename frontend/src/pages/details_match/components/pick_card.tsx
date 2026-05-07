@@ -1,5 +1,7 @@
 import AppAssets from "../../../ultis/assets";
 import ThemedText from "../../../components/themedText";
+import { HiCheck, HiPencil, HiX } from "react-icons/hi";
+import { useEffect, useState } from "react";
 
 interface Props {
     typeLine1: string;
@@ -7,6 +9,9 @@ interface Props {
     bestPick: string;
     confidence: number;
     loading?: boolean;
+    /** When set with onCommitDisplayText, admin may change the centred “分析” label. */
+    adminEditActive?: boolean;
+    onCommitDisplayText?: (value: string) => Promise<void>;
 }
 
 // Convert AI English codes to Chinese display labels
@@ -61,7 +66,44 @@ function CircularProgress({ value, spinning }: { value: number; spinning?: boole
     );
 }
 
-function PickCard({ typeLine1, typeLine2, bestPick, confidence, loading }: Props) {
+function PickCard({
+    typeLine1,
+    typeLine2,
+    bestPick,
+    confidence,
+    loading,
+    adminEditActive,
+    onCommitDisplayText,
+}: Props) {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState(bestPick);
+    const [saveBusy, setSaveBusy] = useState(false);
+
+    useEffect(() => {
+        if (!editing) setDraft(bestPick);
+    }, [bestPick, editing]);
+
+    const canAdminEdit = Boolean(adminEditActive && onCommitDisplayText);
+
+    async function confirmEdit() {
+        if (!onCommitDisplayText) return;
+        const v = draft.trim();
+        setSaveBusy(true);
+        try {
+            await onCommitDisplayText(v);
+            setEditing(false);
+        } catch {
+            /* keep editing open */
+        } finally {
+            setSaveBusy(false);
+        }
+    }
+
+    function cancelEdit() {
+        setDraft(bestPick);
+        setEditing(false);
+    }
+
     return (
         <div className="sm:w-2/3 w-5/6 mx-auto bg-white rounded-xl mt-3 overflow-hidden shadow-sm">
             <div className="flex flex-nowrap items-center px-4 py-3 gap-3">
@@ -78,15 +120,63 @@ function PickCard({ typeLine1, typeLine2, bestPick, confidence, loading }: Props
                     <div className="flex-1 flex items-center justify-center min-w-0">
                         <div className="w-5 h-5 border-2 border-gray-200 border-t-yellow-400 rounded-full animate-spin" />
                     </div>
+                ) : editing ? (
+                    <div className="flex-1 flex flex-col gap-1.5 min-w-0 px-1">
+                        <label className="sr-only">Edit analysis label</label>
+                        <input
+                            className="w-full rounded border border-gray-300 px-2 py-1 text-sm text-black"
+                            value={draft}
+                            disabled={saveBusy}
+                            onChange={(e) => setDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") void confirmEdit();
+                                if (e.key === "Escape") cancelEdit();
+                            }}
+                            autoFocus
+                        />
+                        <div className="flex items-center justify-center gap-3">
+                            <button
+                                type="button"
+                                className="p-1 rounded text-green-700 hover:bg-green-50 disabled:opacity-40"
+                                disabled={saveBusy}
+                                onClick={() => void confirmEdit()}
+                                aria-label="Save"
+                            >
+                                <HiCheck className="h-6 w-6" />
+                            </button>
+                            <button
+                                type="button"
+                                className="p-1 rounded text-red-600 hover:bg-red-50 disabled:opacity-40"
+                                disabled={saveBusy}
+                                onClick={cancelEdit}
+                                aria-label="Cancel"
+                            >
+                                <HiX className="h-6 w-6" />
+                            </button>
+                        </div>
+                    </div>
                 ) : (
-                    <div className="flex-1 flex items-center justify-center min-w-0">
+                    <div className="flex-1 flex items-center justify-center min-w-0 gap-1">
                         <ThemedText className="text-sm text-gray-500 whitespace-nowrap" type="default">分析：</ThemedText>
                         <ThemedText className="text-sm font-bold text-black ml-1 truncate min-w-0" type="defaultSemiBold">
                             {bestPick}
                         </ThemedText>
+                        {canAdminEdit ? (
+                            <button
+                                type="button"
+                                className="ml-1 shrink-0 p-1 rounded text-gray-700 hover:bg-gray-100"
+                                aria-label="Edit analysis text"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditing(true);
+                                }}
+                            >
+                                <HiPencil className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+                            </button>
+                        ) : null}
                     </div>
                 )}
-                <CircularProgress value={confidence} spinning={loading} />
+                <CircularProgress value={confidence} spinning={loading || saveBusy} />
             </div>
             <div className="w-full h-1.5 bg-gray-100">
                 {!loading && confidence > 0 && (

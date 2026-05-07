@@ -1,5 +1,14 @@
 import { TeamLanguages } from "./match";
 
+/** Optional display overrides for admin-editable fixtures (see PATCH …/match/admin-analysis/:id). */
+export interface AdminAnalysisEdits {
+    pickDisplay?: Partial<Record<"goals" | "had" | "handicap" | "corners", string>>;
+    /** Optional override for the circular % on each pick row (0–100). */
+    pickConfidenceDisplay?: Partial<Record<"goals" | "had" | "handicap" | "corners", number>>;
+    iaWinPctDisplay?: Partial<{ home: number; away: number }>;
+    statsWinRateDisplay?: Partial<{ home: string; away: string }>;
+}
+
 export interface Probability {
   homeLanguages?: TeamLanguages;
   awayLanguages?: TeamLanguages;
@@ -40,6 +49,8 @@ export interface Probability {
   hiloLines?: { line: string; overPct: string; underPct: string }[]
   /** HKJC HIL pool main available line condition, e.g. "2.5" */
   hilMainLine?: string
+  adminAnalysisEdits?: AdminAnalysisEdits
+  adminDailyEditableAnalysis?: boolean
 }
 
 export interface PickResult {

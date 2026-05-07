@@ -9,7 +9,7 @@ import AppAssets from "../../ultis/assets";
 import ThemedText from "../../components/themedText";
 import AppGlobal from "../../ultis/global";
 import API from "../../api/api";
-import { Probability } from "../../models/probability";
+import { Probability, AdminAnalysisEdits, PickResult } from "../../models/probability";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -22,11 +22,25 @@ import DetailsCardComponent from "./components/details_card";
 import LockedAnalysisCard from "./components/locked_analysis_card";
 import PredictedScoresPanel from "./components/predicted_scores_panel";
 import { useCanSeeVvvipFeaturedContent, useVvvipFeaturedIdsForDay } from "../../hooks/useVvvipFeaturedMarkers";
+import { AdminAnalysisHeaderToolbar } from "./components/admin_analysis_header_toolbar";
 
 function pickConfidence(p: { confidence: number } | undefined, rawCode: string | undefined): number {
     if (typeof p?.confidence === "number" && p.confidence > 0) return p.confidence;
     if (rawCode && rawCode !== "—") return 70;
     return 0;
+}
+
+function resolvedPickConfidence(
+    edits: AdminAnalysisEdits | undefined,
+    key: "goals" | "had" | "handicap" | "corners",
+    pick: PickResult | undefined,
+    rawCode: string | undefined,
+): number {
+    const ov = edits?.pickConfidenceDisplay?.[key];
+    if (typeof ov === "number" && Number.isFinite(ov)) {
+        return Math.round(Math.max(0, Math.min(100, ov)));
+    }
+    return pickConfidence(pick, rawCode);
 }
 
 function DetailsMatchPage() {
@@ -173,6 +187,45 @@ function DetailsMatchPage() {
     const iaP = displayData?.ia;
     const goalsRaw = iaP?.picks?.goals?.bestPick ?? iaP?.bestPick;
 
+    /** Admin/subadmin: edit analysis labels / % / stats on detail (all four picks unlocked). */
+    const staffCanEditAnalysisDisplay = !!(id && isStaff && displayData?.ia && canSeeAllFourPicks);
+
+    async function patchAdminAnalysis(partial: Partial<AdminAnalysisEdits>): Promise<void> {
+        if (!id) return;
+        const res = await API.PATCH(`${AppGlobal.baseURL}match/admin-analysis/${id}`, partial);
+        if (res.status !== 200) {
+            throw new Error(
+                typeof res.data?.error === "string" ? res.data.error : "Save failed",
+            );
+        }
+        queryClient.setQueryData(["probability", id], (oldData: Probability | undefined) =>
+            oldData && res.data
+                ? {
+                    ...oldData,
+                    adminAnalysisEdits: res.data.adminAnalysisEdits ?? oldData.adminAnalysisEdits,
+                    adminDailyEditableAnalysis:
+                        res.data.adminDailyEditableAnalysis ?? oldData.adminDailyEditableAnalysis,
+                }
+                : oldData,
+        );
+    }
+
+    const oePick = displayData?.adminAnalysisEdits?.pickDisplay;
+    const goalsLbl =
+        oePick?.goals?.trim() ? oePick.goals.trim() : formatPickLabel("goals", goalsRaw ?? "—");
+    const hadLbl =
+        oePick?.had?.trim()
+            ? oePick.had.trim()
+            : formatPickLabel("had", iaP?.picks?.had?.bestPick ?? "—");
+    const hcLbl =
+        oePick?.handicap?.trim()
+            ? oePick.handicap.trim()
+            : formatPickLabel("handicap", iaP?.picks?.handicap?.bestPick ?? "—");
+    const corLbl =
+        oePick?.corners?.trim()
+            ? oePick.corners.trim()
+            : formatPickLabel("corners", iaP?.picks?.corners?.bestPick ?? "—");
+
     const isFeaturedForVvvipPanel =
         Boolean(id) &&
         featuredMatchIds !== null &&
@@ -227,6 +280,16 @@ function DetailsMatchPage() {
                     <AppBarComponent />
                     <div className="mt-24" >
                         {displayData && <HeaderDetailsComponent data={displayData} />}
+                        {displayData ? (
+                            <AdminAnalysisHeaderToolbar
+                                visible={Boolean(
+                                    accessResolved &&
+                                        staffCanEditAnalysisDisplay,
+                                )}
+                                displayData={displayData}
+                                patchAdminAnalysis={patchAdminAnalysis}
+                            />
+                        ) : null}
 
                         {!accessResolved && (
                             <div style={{ marginTop: 30 }}>
@@ -277,44 +340,99 @@ function DetailsMatchPage() {
                                     <LockedPickCard typeLine1="角球" typeLine2="大細" lockHint="VIP 會員專享" />
                                 </>
                             ) : displayData?.ia && canSeeAllFourPicks ? (
-                                <>
+                                <div id="match-analysis-picks">
                                     <PickCard
                                         typeLine1="入球"
                                         typeLine2="大細"
-                                        bestPick={formatPickLabel("goals", goalsRaw ?? "—")}
-                                        confidence={pickConfidence(displayData.ia?.picks?.goals, goalsRaw)}
+                                        bestPick={goalsLbl}
+                                        confidence={resolvedPickConfidence(
+                                            displayData.adminAnalysisEdits,
+                                            "goals",
+                                            displayData.ia?.picks?.goals,
+                                            goalsRaw,
+                                        )}
                                         loading={generatingPicks && !goalsRaw}
+                                        adminEditActive={staffCanEditAnalysisDisplay}
+                                        onCommitDisplayText={
+                                            staffCanEditAnalysisDisplay
+                                                ? (v) => patchAdminAnalysis({ pickDisplay: { goals: v } })
+                                                : undefined
+                                        }
                                     />
                                     <PickCard
                                         typeLine1="主客"
                                         typeLine2="和"
-                                        bestPick={formatPickLabel("had", displayData.ia?.picks?.had?.bestPick ?? "—")}
-                                        confidence={pickConfidence(displayData.ia?.picks?.had, displayData.ia?.picks?.had?.bestPick)}
+                                        bestPick={hadLbl}
+                                        confidence={resolvedPickConfidence(
+                                            displayData.adminAnalysisEdits,
+                                            "had",
+                                            displayData.ia?.picks?.had,
+                                            displayData.ia?.picks?.had?.bestPick,
+                                        )}
                                         loading={generatingPicks && !displayData.ia?.picks?.had?.bestPick}
+                                        adminEditActive={staffCanEditAnalysisDisplay}
+                                        onCommitDisplayText={
+                                            staffCanEditAnalysisDisplay
+                                                ? (v) => patchAdminAnalysis({ pickDisplay: { had: v } })
+                                                : undefined
+                                        }
                                     />
                                     <PickCard
                                         typeLine1="讓"
                                         typeLine2="球"
-                                        bestPick={formatPickLabel("handicap", displayData.ia?.picks?.handicap?.bestPick ?? "—")}
-                                        confidence={pickConfidence(displayData.ia?.picks?.handicap, displayData.ia?.picks?.handicap?.bestPick)}
+                                        bestPick={hcLbl}
+                                        confidence={resolvedPickConfidence(
+                                            displayData.adminAnalysisEdits,
+                                            "handicap",
+                                            displayData.ia?.picks?.handicap,
+                                            displayData.ia?.picks?.handicap?.bestPick,
+                                        )}
                                         loading={generatingPicks && !displayData.ia?.picks?.handicap?.bestPick}
+                                        adminEditActive={staffCanEditAnalysisDisplay}
+                                        onCommitDisplayText={
+                                            staffCanEditAnalysisDisplay
+                                                ? (v) => patchAdminAnalysis({ pickDisplay: { handicap: v } })
+                                                : undefined
+                                        }
                                     />
                                     <PickCard
                                         typeLine1="角球"
                                         typeLine2="大細"
-                                        bestPick={formatPickLabel("corners", displayData.ia?.picks?.corners?.bestPick ?? "—")}
-                                        confidence={pickConfidence(displayData.ia?.picks?.corners, displayData.ia?.picks?.corners?.bestPick)}
+                                        bestPick={corLbl}
+                                        confidence={resolvedPickConfidence(
+                                            displayData.adminAnalysisEdits,
+                                            "corners",
+                                            displayData.ia?.picks?.corners,
+                                            displayData.ia?.picks?.corners?.bestPick,
+                                        )}
                                         loading={generatingPicks && !displayData.ia?.picks?.corners?.bestPick}
+                                        adminEditActive={staffCanEditAnalysisDisplay}
+                                        onCommitDisplayText={
+                                            staffCanEditAnalysisDisplay
+                                                ? (v) => patchAdminAnalysis({ pickDisplay: { corners: v } })
+                                                : undefined
+                                        }
                                     />
-                                </>
+                                </div>
                             ) : displayData?.ia && canSeeVipPicks ? (
                                 <>
                                     <PickCard
                                         typeLine1="入球"
                                         typeLine2="大細"
-                                        bestPick={formatPickLabel("goals", goalsRaw ?? "—")}
-                                        confidence={pickConfidence(displayData.ia?.picks?.goals, goalsRaw)}
+                                        bestPick={goalsLbl}
+                                        confidence={resolvedPickConfidence(
+                                            displayData.adminAnalysisEdits,
+                                            "goals",
+                                            displayData.ia?.picks?.goals,
+                                            goalsRaw,
+                                        )}
                                         loading={generatingPicks && !goalsRaw}
+                                        adminEditActive={staffCanEditAnalysisDisplay}
+                                        onCommitDisplayText={
+                                            staffCanEditAnalysisDisplay
+                                                ? (v) => patchAdminAnalysis({ pickDisplay: { goals: v } })
+                                                : undefined
+                                        }
                                     />
                                     <LockedPickCard typeLine1="主客" typeLine2="和" />
                                     <LockedPickCard typeLine1="讓" typeLine2="球" />
@@ -337,7 +455,12 @@ function DetailsMatchPage() {
                         {/* Team analysis cards: VIP+ staff see stats; normal sees two lock panels */}
                         {displayData &&
                             (canSeeVipPicks ? (
-                                <DetailsCardComponent probability={displayData} tightStackTop={showPredictedScores} />
+                                <DetailsCardComponent
+                                    probability={displayData}
+                                    tightStackTop={showPredictedScores}
+                                    adminAnalysisEditable={staffCanEditAnalysisDisplay}
+                                    onPatchAdminAnalysis={patchAdminAnalysis}
+                                />
                             ) : accessResolved ? (
                                 <>
                                     <LockedAnalysisCard kickOff={data.kickOff} />
