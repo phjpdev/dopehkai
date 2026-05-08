@@ -410,7 +410,6 @@ function MatchsPage() {
                                                         widht={"100%"}
                                                         id={matchId}
                                                         crownPosition="cardTopRight"
-                                                        showFormBadges={isStaffList}
                                                         navigate={navigate}
                                                         match={m}
                                                         teams={[getTeamNameInCurrentLanguage(m.homeLanguages, m.homeTeamName), getTeamNameInCurrentLanguage(m.awayLanguages, m.awayTeamName)]}
@@ -468,7 +467,6 @@ function MatchsPage() {
                                                             widht={"100%"}
                                                             id={matchId}
                                                             crownPosition="cardTopRight"
-                                                            showFormBadges={isStaffList}
                                                             navigate={navigate}
                                                             match={m}
                                                             teams={[getTeamNameInCurrentLanguage(m.homeLanguages, m.homeTeamName), getTeamNameInCurrentLanguage(m.awayLanguages, m.awayTeamName)]}
