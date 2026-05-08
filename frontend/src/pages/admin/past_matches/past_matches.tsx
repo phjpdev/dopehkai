@@ -65,7 +65,7 @@ function PastMatchesAdminPage() {
                 <div className="w-full sm:w-5/6 max-w-5xl pb-16">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
                         <ThemedText type="defaultSemiBold" className="text-xl sm:text-2xl" colorText="orange">
-                            過去兩日賽果（香港時間）
+                            最近三日賽果（香港時間）
                         </ThemedText>
                         <button
                             type="button"
@@ -91,7 +91,7 @@ function PastMatchesAdminPage() {
                                 已存於資料庫且四項推介齊全的賽事會直接顯示；否則會再次呼叫 Gemini 分析並寫回資料庫。
                             </p>
                             {data.matches.length === 0 ? (
-                                <p className="text-gray-400">此兩日內沒有符合的賽事紀錄。</p>
+                                <p className="text-gray-400">此範圍內沒有符合的賽事紀錄。</p>
                             ) : (
                                 <div className="space-y-3">
                                     {data.matches.map((m) => (

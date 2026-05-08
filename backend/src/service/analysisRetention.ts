@@ -1,6 +1,6 @@
 /**
- * Retention for MongoDB `analysis` collection: same HK calendar window as admin past-results
- * (yesterday + day-before). Older analysis rows are removed so the DB does not grow forever.
+ * Retention for MongoDB `analysis` collection: same HK calendar window start as admin past-results
+ * (kickoffs before start of (today − 2) HKT are pruned). Admin UI shows (today−2) through today inclusive.
  */
 import { connectMongo, isMongoEnabled } from "../database/mongodb";
 import { getModel } from "../database/models";
@@ -8,7 +8,11 @@ import { cacheDel, CacheKeys } from "../cache/redis";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** Hong Kong calendar window for admin "過去兩日": (today − 2) 00:00 through (today − 1) 23:59:59 HKT. */
+/**
+ * Hong Kong calendar window for admin past-results / staff merge:
+ * (today − 2) 00:00 through today 23:59:59.999 HKT (three inclusive calendar days, includes today).
+ * Previously ended at yesterday only, so "today's" fixtures never appeared on 過去兩日賽果 while still visible on the main list.
+ */
 export function getAdminPastTwoDaysWindowHkt(now: Date = new Date()): {
     todayHkt: string;
     startYmd: string;
@@ -34,7 +38,7 @@ export function getAdminPastTwoDaysWindowHkt(now: Date = new Date()): {
     };
     const todayHkt = toHktYmd(now);
     const startYmd = ymdAddDaysHkt(todayHkt, -2);
-    const endYmd = ymdAddDaysHkt(todayHkt, -1);
+    const endYmd = todayHkt;
     return {
         todayHkt,
         startYmd,

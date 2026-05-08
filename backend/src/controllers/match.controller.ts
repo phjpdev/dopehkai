@@ -1511,6 +1511,39 @@ class MatchController {
         }
     }
 
+    /** Merge HKJC GraphQL team/display fields onto `matches/{id}` after enrichment (Firestore merge). */
+    private static async persistHkjcEnrichmentToMatchDoc(matchRef: ReturnType<typeof doc>, matchData: Match): Promise<void> {
+        const p: Record<string, unknown> = {};
+        const trimStr = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+        if (trimStr(matchData.homeTeamName)) p.homeTeamName = trimStr(matchData.homeTeamName);
+        if (trimStr(matchData.awayTeamName)) p.awayTeamName = trimStr(matchData.awayTeamName);
+        if (trimStr(matchData.homeTeamNameEn)) p.homeTeamNameEn = matchData.homeTeamNameEn!.trim();
+        if (trimStr(matchData.awayTeamNameEn)) p.awayTeamNameEn = matchData.awayTeamNameEn!.trim();
+        if (trimStr(matchData.homeTeamLogo)) p.homeTeamLogo = trimStr(matchData.homeTeamLogo);
+        if (trimStr(matchData.awayTeamLogo)) p.awayTeamLogo = trimStr(matchData.awayTeamLogo);
+        if (matchData.homeLanguages && typeof matchData.homeLanguages === "object") {
+            p.homeLanguages = matchData.homeLanguages;
+        }
+        if (matchData.awayLanguages && typeof matchData.awayLanguages === "object") {
+            p.awayLanguages = matchData.awayLanguages;
+        }
+        if (trimStr(matchData.competitionName)) p.competitionName = trimStr(matchData.competitionName);
+        if (trimStr(matchData.leagueCode)) p.leagueCode = trimStr(matchData.leagueCode);
+        if (trimStr(matchData.leagueNameProfileId)) p.leagueNameProfileId = trimStr(matchData.leagueNameProfileId);
+        if (typeof matchData.competitionId === "number" && Number.isFinite(matchData.competitionId) && matchData.competitionId > 0) {
+            p.competitionId = matchData.competitionId;
+        }
+        if (trimStr(matchData.matchOutcome)) p.matchOutcome = trimStr(matchData.matchOutcome);
+        if (matchData.hadHomePct != null && String(matchData.hadHomePct).trim() !== "") p.hadHomePct = matchData.hadHomePct;
+        if (matchData.hadDrawPct != null && String(matchData.hadDrawPct).trim() !== "") p.hadDrawPct = matchData.hadDrawPct;
+        if (matchData.hadAwayPct != null && String(matchData.hadAwayPct).trim() !== "") p.hadAwayPct = matchData.hadAwayPct;
+        if (trimStr(matchData.condition)) p.condition = trimStr(matchData.condition);
+        if (matchData.hiloLines?.length) p.hiloLines = matchData.hiloLines;
+        if (trimStr(matchData.hilMainLine)) p.hilMainLine = trimStr(matchData.hilMainLine);
+        if (Object.keys(p).length === 0) return;
+        await setDoc(matchRef, p as Partial<Match>, { merge: true });
+    }
+
     /**
      * Load match, run Gemini when picks incomplete, persist. Used by HTTP analyze and admin past-results.
      */
@@ -1527,6 +1560,22 @@ class MatchController {
             let matchData = matchSnap.data() as Match;
             if (!matchData.homeForm) matchData.homeForm = "";
             if (!matchData.awayForm) matchData.awayForm = "";
+
+            const hkjcMatch = await ApiHKJCMatchById(matchId);
+            if (hkjcMatch) {
+                const markets = extractHKJCMarkets(hkjcMatch);
+                if (markets.hadHomePct != null) matchData.hadHomePct = markets.hadHomePct;
+                if (markets.hadDrawPct != null) matchData.hadDrawPct = markets.hadDrawPct;
+                if (markets.hadAwayPct != null) matchData.hadAwayPct = markets.hadAwayPct;
+                if (markets.condition) matchData.condition = markets.condition;
+                if (markets.hiloLines?.length) matchData.hiloLines = markets.hiloLines;
+                if (markets.hilMainLine) matchData.hilMainLine = markets.hilMainLine;
+                matchData = enrichMatchFromHkjcGraphql(matchData, hkjcMatch);
+                await MatchController.persistHkjcEnrichmentToMatchDoc(matchRef, matchData);
+                await cacheDel(CacheKeys.matchDetail(matchId));
+                await cacheDel(CacheKeys.matchesList(false));
+                await cacheDel(CacheKeys.matchesList(true));
+            }
 
             const cachedPicks = matchData.ia?.picks;
             const hasCompletePicks =
@@ -1551,17 +1600,6 @@ class MatchController {
                     { merge: true }
                 );
                 return { ok: true as const, ia: matchData.ia as ResultIA };
-            }
-
-            const hkjcMatch = await ApiHKJCMatchById(matchId);
-            if (hkjcMatch) {
-                const markets = extractHKJCMarkets(hkjcMatch);
-                if (markets.hadHomePct != null) matchData.hadHomePct = markets.hadHomePct;
-                if (markets.hadDrawPct != null) matchData.hadDrawPct = markets.hadDrawPct;
-                if (markets.hadAwayPct != null) matchData.hadAwayPct = markets.hadAwayPct;
-                if (markets.condition) matchData.condition = markets.condition;
-                if (markets.hiloLines?.length) matchData.hiloLines = markets.hiloLines;
-                if (markets.hilMainLine) matchData.hilMainLine = markets.hilMainLine;
             }
 
             const parseImpliedPct = (v: string | number | undefined | null): number | null => {
@@ -1694,7 +1732,7 @@ class MatchController {
         }
     }
 
-    /** Admin/subadmin: matches from the previous two calendar days (HKT) with results + IA; fills missing IA via Gemini. */
+    /** Admin/subadmin: matches from (today−2)..today HKT with results + IA; fills missing IA via Gemini. */
     static async getPastMatchResults(req: Request, res: Response) {
         try {
             const skipGemini =
@@ -1835,7 +1873,7 @@ class MatchController {
 
             const seenIds = new Set<string>();
 
-            /** DB `analysis` first: ensures (today−2) and (today−1) appear even when FootyLogic/Gemini is slow. */
+            /** DB `analysis` first: ensures the HK window (today−2 .. today) appears even when FootyLogic/Gemini is slow. */
             try {
                 const analysisCol = collection(db, Tables.analysis);
                 const analysisSnap = await getDocs(analysisCol);
