@@ -10,6 +10,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from "../database
 import { db } from "../firebase/firebase";
 import Tables from "../ultis/tables.ultis";
 import { cacheDel, cacheSet, CacheKeys } from "../cache/redis";
+import { mergeMatchDisplayIntoAnalysisDoc } from "./analysisDisplaySnapshot";
 
 export async function syncHkjcToMatches(): Promise<void> {
   try {
@@ -27,6 +28,13 @@ export async function syncHkjcToMatches(): Promise<void> {
     for (const d of snapshot.docs) {
       const id = d.id;
       if (!validIds.has(id)) {
+        const doomedData = d.data() as Match;
+        try {
+          await mergeMatchDisplayIntoAnalysisDoc(id, { ...doomedData, id });
+        } catch (e) {
+          console.warn("[syncHkjc] analysis display snapshot failed:", id, e);
+        }
+        await cacheDel(CacheKeys.matchDetail(id));
         await deleteDoc(doc(db, Tables.matches, id));
         console.log("[syncHkjc] Removed match no longer in HKJC:", id);
       }

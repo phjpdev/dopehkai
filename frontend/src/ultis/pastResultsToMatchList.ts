@@ -58,6 +58,8 @@ export interface PastResultListRow {
     awayTeamNameEn?: string;
     homeTeamLogo?: string;
     awayTeamLogo?: string;
+    homeForm?: string;
+    awayForm?: string;
     competitionName?: string;
     outcomeName?: string;
     matchOutcome?: string;
@@ -71,6 +73,11 @@ export function pastResultRowToMatch(row: PastResultListRow): Match {
     const awayLogo = row.awayTeamLogo?.trim() || fallbackLogo;
     const homeLabel = displayTeamLabel(row.homeTeamName, row.homeTeamNameEn);
     const awayLabel = displayTeamLabel(row.awayTeamName, row.awayTeamNameEn);
+    const hf = (row.homeForm && row.homeForm.trim()) || "";
+    const af = (row.awayForm && row.awayForm.trim()) || "";
+    const lastGames = emptyLastGames();
+    if (hf) lastGames.homeTeam.teamForm = hf;
+    if (af) lastGames.awayTeam.teamForm = af;
     return {
         id: row.id,
         eventId: row.id,
@@ -90,8 +97,8 @@ export function pastResultRowToMatch(row: PastResultListRow): Match {
         competitionIdNav: 0,
         outcomeName: row.outcomeName || "",
         matchOutcome: row.matchOutcome || "",
-        homeForm: "",
-        awayForm: "",
+        homeForm: hf,
+        awayForm: af,
         countryId: "",
         countryName: "",
         hadDrawPct: "",
@@ -103,7 +110,7 @@ export function pastResultRowToMatch(row: PastResultListRow): Match {
         awayTeamId: 0,
         homeLanguages: { zh: homeLabel, en: row.homeTeamNameEn || homeLabel },
         awayLanguages: { zh: awayLabel, en: row.awayTeamNameEn || awayLabel },
-        lastGames: emptyLastGames(),
+        lastGames,
         ia: row.ia,
     };
 }

@@ -20,6 +20,7 @@ import { CalculationProbality } from "./calculationProbality";
 import { ResultIA } from "../model/match.model";
 import { ApiHKJC } from "../data/api-hkjc";
 import { extractHKJCMarkets } from "./hkjcMarkets";
+import { mergeMatchDisplayIntoAnalysisDoc } from "./analysisDisplaySnapshot";
 
 const LOCK_TTL_SECONDS = 120; // Lock held for up to 2 min during batch
 
@@ -185,6 +186,10 @@ export async function runAnalysisBatch(): Promise<{
       }
       const matchRef = doc(db, Tables.matches, m.matchId);
       try {
+        const snapExisting = await getDoc(matchRef);
+        if (snapExisting.exists()) {
+          await mergeMatchDisplayIntoAnalysisDoc(m.matchId, snapExisting.data() as any);
+        }
         await updateDoc(matchRef, {
           ia,
           analysis_status: "completed",

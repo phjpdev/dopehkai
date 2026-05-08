@@ -30,6 +30,7 @@ import {
     annotateMatchesWithAdminDailyEditable,
     isMatchAdminDailyEditable,
 } from "../service/adminDailyEditableMatches";
+import { displaySnapshotFromMatch } from "../service/analysisDisplaySnapshot";
 
 /** Map FootyLogic list event → Firestore match fields (HKJC sync removes finished games; past-results needs this). */
 function footyEventToMatchPartial(ev: Event): Partial<Match> {
@@ -71,6 +72,24 @@ function footyEventKickOffMs(ev: Event): number | null {
     return null;
 }
 
+function sparseTeamLabel(s?: string): boolean {
+    return !s?.trim() || s.trim() === "—";
+}
+
+/** Footy Logic games feed still lists recent results with names + W,D,L strings. Overlay when matches row is gone. */
+function overlayFootyGamesListOntoMatch(m: Match, ev: Event | undefined): Match {
+    if (!ev) return m;
+    const p = footyEventToMatchPartial(ev);
+    const out: Match = { ...m };
+    if (sparseTeamLabel(out.homeTeamName) && p.homeTeamName?.trim()) out.homeTeamName = p.homeTeamName;
+    if (sparseTeamLabel(out.awayTeamName) && p.awayTeamName?.trim()) out.awayTeamName = p.awayTeamName;
+    if (!out.competitionName?.trim() && p.competitionName?.trim()) out.competitionName = p.competitionName;
+    if (p.competitionId && !out.competitionId) out.competitionId = p.competitionId;
+    if ((!out.homeForm || !String(out.homeForm).trim()) && p.homeForm?.trim()) out.homeForm = p.homeForm;
+    if ((!out.awayForm || !String(out.awayForm).trim()) && p.awayForm?.trim()) out.awayForm = p.awayForm;
+    return out;
+}
+
 /** UI reads `homeForm` / `awayForm` (comma W,D,L); FootyLogic stores the same in `lastGames.*.teamForm`. */
 function syncFormFieldsFromLastGames(matchData: Match): void {
     if (!matchData.lastGames) return;
@@ -95,13 +114,17 @@ async function upsertAnalysisStubFromPastResult(id: string, data: Match, ia: Res
     };
     const hn = typeof data.homeTeamName === "string" ? data.homeTeamName.trim() : "";
     const an = typeof data.awayTeamName === "string" ? data.awayTeamName.trim() : "";
-    if (hn) patch.homeTeamName = hn;
-    if (an) patch.awayTeamName = an;
+    if (hn && !sparseTeamLabel(hn)) patch.homeTeamName = hn;
+    if (an && !sparseTeamLabel(an)) patch.awayTeamName = an;
     if (data.homeTeamNameEn) patch.homeTeamNameEn = data.homeTeamNameEn;
     if (data.awayTeamNameEn) patch.awayTeamNameEn = data.awayTeamNameEn;
     if (typeof data.homeTeamLogo === "string" && data.homeTeamLogo) patch.homeTeamLogo = data.homeTeamLogo;
     if (typeof data.awayTeamLogo === "string" && data.awayTeamLogo) patch.awayTeamLogo = data.awayTeamLogo;
     if (typeof data.competitionName === "string" && data.competitionName) patch.competitionName = data.competitionName;
+    if (typeof data.homeForm === "string" && data.homeForm.trim()) patch.homeForm = data.homeForm.trim();
+    if (typeof data.awayForm === "string" && data.awayForm.trim()) patch.awayForm = data.awayForm.trim();
+    if (data.homeLanguages && typeof data.homeLanguages === "object") patch.homeLanguages = data.homeLanguages;
+    if (data.awayLanguages && typeof data.awayLanguages === "object") patch.awayLanguages = data.awayLanguages;
     if (ia && typeof ia.home === "number" && typeof ia.away === "number") {
         patch.home = ia.home;
         patch.away = ia.away;
@@ -692,8 +715,14 @@ class MatchController {
             competitionName: md.competitionName || (typeof raw.competitionName === "string" ? raw.competitionName : "") || "",
             competitionId: md.competitionId ?? 0,
             matchOutcome: md.matchOutcome || "",
-            homeForm: md.homeForm || "",
-            awayForm: md.awayForm || "",
+            homeForm:
+                (typeof md.homeForm === "string" && md.homeForm.trim()) ||
+                (typeof raw.homeForm === "string" ? raw.homeForm.trim() : "") ||
+                "",
+            awayForm:
+                (typeof md.awayForm === "string" && md.awayForm.trim()) ||
+                (typeof raw.awayForm === "string" ? raw.awayForm.trim() : "") ||
+                "",
             ia,
             homeLanguages: md.homeLanguages || {
                 en: homeNameEnPick || homeName || "",
@@ -1497,6 +1526,16 @@ class MatchController {
                 typeof matchData.ia.away === "number" &&
                 hasCompletePicks
             ) {
+                syncFormFieldsFromLastGames(matchData);
+                const analysisRefCached = doc(db, Tables.analysis, matchId);
+                await setDoc(
+                    analysisRefCached,
+                    {
+                        ...displaySnapshotFromMatch(matchId, matchData),
+                        ...matchData.ia,
+                    },
+                    { merge: true }
+                );
                 return { ok: true as const, ia: matchData.ia as ResultIA };
             }
 
@@ -1596,18 +1635,16 @@ class MatchController {
                     matchData.awayForm.split(",")
                 );
             }
+            syncFormFieldsFromLastGames(matchData);
             await setDoc(matchRef, matchData, { merge: true });
             await cacheDel(CacheKeys.matchDetail(matchId));
             await cacheDel(CacheKeys.matchesList(false));
             await cacheDel(CacheKeys.matchesList(true));
             const analysisRef = doc(db, Tables.analysis, matchId);
-            const analysisKickOffMs = kickOffStringToMs(matchData.kickOff);
             await setDoc(
                 analysisRef,
                 {
-                    matchId,
-                    analysisKickOff: matchData.kickOff,
-                    ...(analysisKickOffMs != null ? { analysisKickOffMs } : {}),
+                    ...displaySnapshotFromMatch(matchId, matchData),
                     ...matchData.ia,
                 },
                 { merge: true }
@@ -1669,6 +1706,8 @@ class MatchController {
                 ia?: ResultIA;
                 geminiStatus: "cached" | "refreshed" | "skipped" | "failed";
                 geminiMessage?: string;
+                homeForm?: string;
+                awayForm?: string;
             };
             const rows: Row[] = [];
 
@@ -1693,6 +1732,10 @@ class MatchController {
                     awayLangZh,
                     data.awayLanguages?.en
                 );
+                const hf =
+                    typeof data.homeForm === "string" && data.homeForm.trim() ? data.homeForm.trim() : undefined;
+                const af =
+                    typeof data.awayForm === "string" && data.awayForm.trim() ? data.awayForm.trim() : undefined;
                 rows.push({
                     id,
                     kickOff: data.kickOff,
@@ -1705,6 +1748,8 @@ class MatchController {
                     competitionName: data.competitionName,
                     outcomeName: data.outcomeName || undefined,
                     matchOutcome: data.matchOutcome || undefined,
+                    homeForm: hf,
+                    awayForm: af,
                     ia,
                     geminiStatus,
                     geminiMessage,
@@ -1738,9 +1783,26 @@ class MatchController {
                 }
                 const rowData =
                     ia && ia !== enriched.ia ? ({ ...enriched, ia } as Match) : enriched;
+                syncFormFieldsFromLastGames(rowData);
                 pushRowFromMatchData(id, rowData, geminiStatus, geminiMessage, ia);
                 await upsertAnalysisStubFromPastResult(id, rowData, ia);
             };
+
+            const eventsById = new Map<string, Event>();
+            try {
+                const gamesRes = await API.GET(Global.footylogicGames);
+                if (gamesRes.status === 200 && gamesRes.data?.data) {
+                    for (const daum of gamesRes.data.data as Daum[]) {
+                        for (const ev of daum.events || []) {
+                            const evMs = footyEventKickOffMs(ev);
+                            if (evMs == null || evMs < windowStartMs || evMs > windowEndMs) continue;
+                            eventsById.set(ev.eventId, ev);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn("[getPastMatchResults] footylogicGames failed", e);
+            }
 
             const seenIds = new Set<string>();
 
@@ -1802,8 +1864,8 @@ class MatchController {
                     const merged = {
                         ...md,
                         kickOff: kickOffStr,
-                        homeTeamName: teamFieldCoalesce(md.homeTeamName, a.homeTeamName, "—"),
-                        awayTeamName: teamFieldCoalesce(md.awayTeamName, a.awayTeamName, "—"),
+                        homeTeamName: teamFieldCoalesce(md.homeTeamName, a.homeTeamName, ""),
+                        awayTeamName: teamFieldCoalesce(md.awayTeamName, a.awayTeamName, ""),
                         homeTeamNameEn:
                             md.homeTeamNameEn ||
                             (typeof a.homeTeamNameEn === "string" ? a.homeTeamNameEn : undefined),
@@ -1816,6 +1878,28 @@ class MatchController {
                         awayTeamLogo:
                             md.awayTeamLogo ||
                             (typeof a.awayTeamLogo === "string" ? a.awayTeamLogo : undefined),
+                        homeLanguages:
+                            md.homeLanguages ??
+                            (typeof a.homeLanguages === "object" && a.homeLanguages != null
+                                ? (a.homeLanguages as Match["homeLanguages"])
+                                : undefined),
+                        awayLanguages:
+                            md.awayLanguages ??
+                            (typeof a.awayLanguages === "object" && a.awayLanguages != null
+                                ? (a.awayLanguages as Match["awayLanguages"])
+                                : undefined),
+                        homeForm:
+                            (typeof md.homeForm === "string" && md.homeForm.trim()
+                                ? md.homeForm
+                                : typeof a.homeForm === "string"
+                                  ? a.homeForm.trim()
+                                  : "") || "",
+                        awayForm:
+                            (typeof md.awayForm === "string" && md.awayForm.trim()
+                                ? md.awayForm
+                                : typeof a.awayForm === "string"
+                                  ? a.awayForm.trim()
+                                  : "") || "",
                         competitionName:
                             md.competitionName ||
                             (typeof a.competitionName === "string" ? a.competitionName : "") ||
@@ -1828,26 +1912,14 @@ class MatchController {
                         picks?.had?.bestPick &&
                         picks?.handicap?.bestPick &&
                         picks?.corners?.bestPick;
-                    await runGeminiBranch(id, merged, !!hasCompletePicks);
+                    await runGeminiBranch(
+                        id,
+                        overlayFootyGamesListOntoMatch(merged, eventsById.get(id)),
+                        !!hasCompletePicks
+                    );
                 }
             } catch (e) {
                 console.warn("[getPastMatchResults] analysis primary pass failed", e);
-            }
-
-            const eventsById = new Map<string, Event>();
-            try {
-                const gamesRes = await API.GET(Global.footylogicGames);
-                if (gamesRes.status === 200 && gamesRes.data?.data) {
-                    for (const daum of gamesRes.data.data as Daum[]) {
-                        for (const ev of daum.events || []) {
-                            const evMs = footyEventKickOffMs(ev);
-                            if (evMs == null || evMs < windowStartMs || evMs > windowEndMs) continue;
-                            eventsById.set(ev.eventId, ev);
-                        }
-                    }
-                }
-            } catch (e) {
-                console.warn("[getPastMatchResults] footylogicGames failed", e);
             }
 
             const sortedEvents = Array.from(eventsById.values()).sort(
@@ -1891,7 +1963,11 @@ class MatchController {
                     cachedPicks?.handicap?.bestPick &&
                     cachedPicks?.corners?.bestPick;
 
-                await runGeminiBranch(id, data, !!hasCompletePicks);
+                await runGeminiBranch(
+                    id,
+                    overlayFootyGamesListOntoMatch(data, eventsById.get(id)),
+                    !!hasCompletePicks
+                );
             }
 
             rows.sort(
