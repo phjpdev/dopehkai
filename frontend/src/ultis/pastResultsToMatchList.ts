@@ -1,4 +1,4 @@
-import type { Match, LastGames } from "../models/match";
+import type { Match, LastGames, TeamLanguages } from "../models/match";
 import type { ResultIA } from "../models/probability";
 import AppAssets from "./assets";
 
@@ -58,11 +58,18 @@ export interface PastResultListRow {
     awayTeamNameEn?: string;
     homeTeamLogo?: string;
     awayTeamLogo?: string;
+    homeLanguages?: TeamLanguages;
+    awayLanguages?: TeamLanguages;
+    homeTeamId?: number;
+    awayTeamId?: number;
     homeForm?: string;
     awayForm?: string;
     competitionName?: string;
     outcomeName?: string;
     matchOutcome?: string;
+    leagueCode?: string;
+    leagueNameProfileId?: string;
+    lastGames?: LastGames;
     ia?: ResultIA;
 }
 
@@ -71,13 +78,29 @@ export function pastResultRowToMatch(row: PastResultListRow): Match {
     const fallbackLogo = AppAssets.logo_black;
     const homeLogo = row.homeTeamLogo?.trim() || fallbackLogo;
     const awayLogo = row.awayTeamLogo?.trim() || fallbackLogo;
-    const homeLabel = displayTeamLabel(row.homeTeamName, row.homeTeamNameEn);
-    const awayLabel = displayTeamLabel(row.awayTeamName, row.awayTeamNameEn);
+    /**
+     * Server may already supply `homeLanguages.zh` (HKJC enrichment). Use it before falling back to
+     * the flat name fields so cards on the list show the same Chinese label as live fixtures.
+     */
+    const langZhHome = row.homeLanguages?.zh?.trim();
+    const langZhAway = row.awayLanguages?.zh?.trim();
+    const homeLabel = (langZhHome && langZhHome !== "—")
+        ? langZhHome
+        : displayTeamLabel(row.homeTeamName, row.homeTeamNameEn);
+    const awayLabel = (langZhAway && langZhAway !== "—")
+        ? langZhAway
+        : displayTeamLabel(row.awayTeamName, row.awayTeamNameEn);
     const hf = (row.homeForm && row.homeForm.trim()) || "";
     const af = (row.awayForm && row.awayForm.trim()) || "";
-    const lastGames = emptyLastGames();
-    if (hf) lastGames.homeTeam.teamForm = hf;
-    if (af) lastGames.awayTeam.teamForm = af;
+    const lastGames = row.lastGames ?? emptyLastGames();
+    if (hf && !lastGames.homeTeam.teamForm) lastGames.homeTeam.teamForm = hf;
+    if (af && !lastGames.awayTeam.teamForm) lastGames.awayTeam.teamForm = af;
+    const homeLanguages: TeamLanguages = row.homeLanguages
+        ? { ...row.homeLanguages, zh: row.homeLanguages.zh || homeLabel }
+        : { zh: homeLabel, en: row.homeTeamNameEn || homeLabel };
+    const awayLanguages: TeamLanguages = row.awayLanguages
+        ? { ...row.awayLanguages, zh: row.awayLanguages.zh || awayLabel }
+        : { zh: awayLabel, en: row.awayTeamNameEn || awayLabel };
     return {
         id: row.id,
         eventId: row.id,
@@ -106,11 +129,13 @@ export function pastResultRowToMatch(row: PastResultListRow): Match {
         hadAwayPct: "",
         bestBetName: "",
         awayTeamImgUrl: null,
-        homeTeamId: 0,
-        awayTeamId: 0,
-        homeLanguages: { zh: homeLabel, en: row.homeTeamNameEn || homeLabel },
-        awayLanguages: { zh: awayLabel, en: row.awayTeamNameEn || awayLabel },
+        homeTeamId: row.homeTeamId ?? 0,
+        awayTeamId: row.awayTeamId ?? 0,
+        homeLanguages,
+        awayLanguages,
         lastGames,
+        leagueCode: row.leagueCode,
+        leagueNameProfileId: row.leagueNameProfileId,
         ia: row.ia,
     };
 }

@@ -212,16 +212,14 @@ function Card({
 
         <div style={{ flexDirection: "row", display: "flex", alignItems: "center", justifyItems: "flex-start", width: "100%" }} >
 
-            {
-                img
-                    ? <img src={img}
-                        onError={(e: any) => {
-                            e.target.onerror = null;
-                            e.target.src = AppAssets.logo;
-                        }}
-                        className="h-7 w-7 sm:h-10 sm:w-10 object-contain mr-2" />
-                    : <></>
-            }
+            <img
+                src={img || AppAssets.logo}
+                onError={(e: any) => {
+                    e.target.onerror = null;
+                    e.target.src = AppAssets.logo;
+                }}
+                className="h-7 w-7 sm:h-10 sm:w-10 object-contain mr-2"
+            />
 
             <ThemedText
                 className="font-bold text-[19px] sm:text-[20px] leading-tight"

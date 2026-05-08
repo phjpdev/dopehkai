@@ -126,6 +126,11 @@ async function upsertAnalysisStubFromPastResult(id: string, data: Match, ia: Res
     if (typeof data.awayForm === "string" && data.awayForm.trim()) patch.awayForm = data.awayForm.trim();
     if (data.homeLanguages && typeof data.homeLanguages === "object") patch.homeLanguages = data.homeLanguages;
     if (data.awayLanguages && typeof data.awayLanguages === "object") patch.awayLanguages = data.awayLanguages;
+    if (data.homeTeamId) patch.homeTeamId = data.homeTeamId;
+    if (data.awayTeamId) patch.awayTeamId = data.awayTeamId;
+    if (typeof data.leagueCode === "string" && data.leagueCode) patch.leagueCode = data.leagueCode;
+    if (typeof data.leagueNameProfileId === "string" && data.leagueNameProfileId) patch.leagueNameProfileId = data.leagueNameProfileId;
+    if (data.lastGames?.homeTeam && data.lastGames?.awayTeam) patch.lastGames = data.lastGames;
     if (ia && typeof ia.home === "number" && typeof ia.away === "number") {
         patch.home = ia.home;
         patch.away = ia.away;
@@ -697,6 +702,10 @@ class MatchController {
         const homeNameEnPick = named(md.homeTeamNameEn) || named(raw.homeTeamNameEn);
         const awayNameEnPick = named(md.awayTeamNameEn) || named(raw.awayTeamNameEn);
 
+        const rawHomeTeamId = typeof raw.homeTeamId === "number" ? raw.homeTeamId : undefined;
+        const rawAwayTeamId = typeof raw.awayTeamId === "number" ? raw.awayTeamId : undefined;
+        const rawLastGames =
+            raw.lastGames && typeof raw.lastGames === "object" ? (raw.lastGames as Match["lastGames"]) : undefined;
         const out: Match = {
             ...md,
             id,
@@ -713,9 +722,17 @@ class MatchController {
                 md.homeTeamLogo || (typeof raw.homeTeamLogo === "string" ? raw.homeTeamLogo : undefined),
             awayTeamLogo:
                 md.awayTeamLogo || (typeof raw.awayTeamLogo === "string" ? raw.awayTeamLogo : undefined),
+            homeTeamId: md.homeTeamId || rawHomeTeamId,
+            awayTeamId: md.awayTeamId || rawAwayTeamId,
             competitionName: md.competitionName || (typeof raw.competitionName === "string" ? raw.competitionName : "") || "",
             competitionId: md.competitionId ?? 0,
             matchOutcome: md.matchOutcome || "",
+            leagueCode:
+                md.leagueCode ||
+                (typeof raw.leagueCode === "string" ? raw.leagueCode : undefined),
+            leagueNameProfileId:
+                md.leagueNameProfileId ||
+                (typeof raw.leagueNameProfileId === "string" ? raw.leagueNameProfileId : undefined),
             homeForm:
                 (typeof md.homeForm === "string" && md.homeForm.trim()) ||
                 (typeof raw.homeForm === "string" ? raw.homeForm.trim() : "") ||
@@ -724,6 +741,7 @@ class MatchController {
                 (typeof md.awayForm === "string" && md.awayForm.trim()) ||
                 (typeof raw.awayForm === "string" ? raw.awayForm.trim() : "") ||
                 "",
+            lastGames: md.lastGames || rawLastGames,
             ia,
             homeLanguages: md.homeLanguages || {
                 en: homeNameEnPick || homeName || "",
@@ -1779,14 +1797,21 @@ class MatchController {
                 awayTeamNameEn?: string;
                 homeTeamLogo?: string;
                 awayTeamLogo?: string;
+                homeLanguages?: Match["homeLanguages"];
+                awayLanguages?: Match["awayLanguages"];
+                homeTeamId?: number;
+                awayTeamId?: number;
                 competitionName?: string;
                 outcomeName?: string;
                 matchOutcome?: string;
+                leagueCode?: string;
+                leagueNameProfileId?: string;
                 ia?: ResultIA;
                 geminiStatus: "cached" | "refreshed" | "skipped" | "failed";
                 geminiMessage?: string;
                 homeForm?: string;
                 awayForm?: string;
+                lastGames?: Match["lastGames"];
             };
             const rows: Row[] = [];
 
@@ -1824,15 +1849,109 @@ class MatchController {
                     awayTeamNameEn: data.awayTeamNameEn,
                     homeTeamLogo: typeof data.homeTeamLogo === "string" ? data.homeTeamLogo : undefined,
                     awayTeamLogo: typeof data.awayTeamLogo === "string" ? data.awayTeamLogo : undefined,
+                    homeLanguages: data.homeLanguages,
+                    awayLanguages: data.awayLanguages,
+                    homeTeamId: data.homeTeamId,
+                    awayTeamId: data.awayTeamId,
                     competitionName: data.competitionName,
                     outcomeName: data.outcomeName || undefined,
                     matchOutcome: data.matchOutcome || undefined,
+                    leagueCode: data.leagueCode,
+                    leagueNameProfileId: data.leagueNameProfileId,
                     homeForm: hf,
                     awayForm: af,
+                    lastGames: data.lastGames,
                     ia,
                     geminiStatus,
                     geminiMessage,
                 });
+            };
+
+            /** True when the match still lacks the basics we need to render a usable card / detail view. */
+            const isMatchSparse = (m: Match): boolean =>
+                sparseTeamLabel(m.homeTeamName) ||
+                sparseTeamLabel(m.awayTeamName) ||
+                !m.homeTeamLogo ||
+                !m.awayTeamLogo;
+
+            /** Last resort lookup: HKJC keeps individual fixtures longer than the date-range feed. */
+            const enrichFromHkjcByIdIfSparse = async (id: string, m: Match): Promise<Match> => {
+                if (!isMatchSparse(m)) return m;
+                try {
+                    const hk = await ApiHKJCMatchById(id);
+                    if (hk) return enrichMatchFromHkjcGraphql(m, hk);
+                } catch (e) {
+                    console.warn("[getPastMatchResults] HKJC by id fallback failed", id, e);
+                }
+                return m;
+            };
+
+            /** Pull recent-form / last games from FootyLogic when we already have both team ids. */
+            const enrichWithLastGamesIfMissing = async (m: Match): Promise<Match> => {
+                if (m.lastGames?.homeTeam && m.lastGames?.awayTeam) return m;
+                const homeTeamId = m.homeTeamId;
+                const awayTeamId = m.awayTeamId;
+                if (!homeTeamId || !awayTeamId) return m;
+                try {
+                    const lgRes = await API.GET(
+                        Global.footylogicRecentForm +
+                            "&homeTeamId=" + homeTeamId +
+                            "&awayTeamId=" + awayTeamId +
+                            "&marketGroupId=1&optionIdH=1&optionIdA=1&mode=1"
+                    );
+                    if (lgRes.status === 200 && lgRes.data?.statusCode === 200 && lgRes.data?.data) {
+                        const lastGames = parseToInformationForm(
+                            lgRes.data.data,
+                            m.homeTeamName ?? "",
+                            m.awayTeamName ?? ""
+                        );
+                        const next: Match = { ...m, lastGames };
+                        if (lastGames.homeTeam?.teamForm && !String(next.homeForm || "").trim()) {
+                            next.homeForm = lastGames.homeTeam.teamForm;
+                        }
+                        if (lastGames.awayTeam?.teamForm && !String(next.awayForm || "").trim()) {
+                            next.awayForm = lastGames.awayTeam.teamForm;
+                        }
+                        return next;
+                    }
+                } catch (e) {
+                    console.warn("[getPastMatchResults] FootyLogic recent form fallback failed", e);
+                }
+                return m;
+            };
+
+            /**
+             * Persist enrichment back to the `matches` collection so the detail page (`/match-data/:id`)
+             * shows the resolved team name / logo / form data on first paint instead of relying on the
+             * background enrich job (which only fires after the user has already seen sparse fields).
+             */
+            const persistEnrichedMatch = async (id: string, m: Match): Promise<void> => {
+                const patch: Record<string, unknown> = {};
+                if (typeof m.kickOff === "string" && m.kickOff.trim()) patch.kickOff = m.kickOff;
+                if (typeof m.homeTeamName === "string" && !sparseTeamLabel(m.homeTeamName)) patch.homeTeamName = m.homeTeamName;
+                if (typeof m.awayTeamName === "string" && !sparseTeamLabel(m.awayTeamName)) patch.awayTeamName = m.awayTeamName;
+                if (typeof m.homeTeamNameEn === "string" && m.homeTeamNameEn.trim()) patch.homeTeamNameEn = m.homeTeamNameEn;
+                if (typeof m.awayTeamNameEn === "string" && m.awayTeamNameEn.trim()) patch.awayTeamNameEn = m.awayTeamNameEn;
+                if (typeof m.homeTeamLogo === "string" && m.homeTeamLogo) patch.homeTeamLogo = m.homeTeamLogo;
+                if (typeof m.awayTeamLogo === "string" && m.awayTeamLogo) patch.awayTeamLogo = m.awayTeamLogo;
+                if (m.homeLanguages && typeof m.homeLanguages === "object") patch.homeLanguages = m.homeLanguages;
+                if (m.awayLanguages && typeof m.awayLanguages === "object") patch.awayLanguages = m.awayLanguages;
+                if (m.homeTeamId) patch.homeTeamId = m.homeTeamId;
+                if (m.awayTeamId) patch.awayTeamId = m.awayTeamId;
+                if (typeof m.competitionName === "string" && m.competitionName) patch.competitionName = m.competitionName;
+                if (typeof m.leagueCode === "string" && m.leagueCode) patch.leagueCode = m.leagueCode;
+                if (typeof m.leagueNameProfileId === "string" && m.leagueNameProfileId) patch.leagueNameProfileId = m.leagueNameProfileId;
+                if (typeof m.homeForm === "string" && m.homeForm.trim()) patch.homeForm = m.homeForm.trim();
+                if (typeof m.awayForm === "string" && m.awayForm.trim()) patch.awayForm = m.awayForm.trim();
+                if (m.lastGames?.homeTeam && m.lastGames?.awayTeam) patch.lastGames = m.lastGames;
+                if (typeof m.matchOutcome === "string" && m.matchOutcome) patch.matchOutcome = m.matchOutcome;
+                if (Object.keys(patch).length === 0) return;
+                try {
+                    await setDoc(doc(db, Tables.matches, id), patch as any, { merge: true });
+                    await cacheDel(CacheKeys.matchDetail(id));
+                } catch (e) {
+                    console.warn("[getPastMatchResults] persistEnrichedMatch failed for", id, e);
+                }
             };
 
             const runGeminiBranch = async (id: string, data: Match, hadComplete: boolean) => {
@@ -1840,7 +1959,10 @@ class MatchController {
                 const hkRow = hkjcByIdPastWindow.get(id);
                 if (hkRow) m = enrichMatchFromHkjcGraphql(m, hkRow);
                 m = overlayFootyGamesListOntoMatch(m, eventsById.get(id));
-                const enriched = await enrichMatchFromFootyDetailsIfSparse(id, m);
+                m = await enrichMatchFromFootyDetailsIfSparse(id, m);
+                m = await enrichFromHkjcByIdIfSparse(id, m);
+                m = await enrichWithLastGamesIfMissing(m);
+                const enriched = m;
                 let geminiStatus: Row["geminiStatus"] = "cached";
                 let geminiMessage: string | undefined;
                 let ia = enriched.ia as ResultIA | undefined;
@@ -1869,6 +1991,7 @@ class MatchController {
                 syncFormFieldsFromLastGames(rowData);
                 pushRowFromMatchData(id, rowData, geminiStatus, geminiMessage, ia);
                 await upsertAnalysisStubFromPastResult(id, rowData, ia);
+                await persistEnrichedMatch(id, rowData);
             };
 
             const seenIds = new Set<string>();
