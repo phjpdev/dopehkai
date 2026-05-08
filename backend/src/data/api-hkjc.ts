@@ -161,7 +161,43 @@ const base = {
         "earlySettlementOnly": false,
         "showAllMatch": false, // When true, returns all matches regardless of fbOddsTypesM
         "tday": null,
-        "tIdList": null
+        "tIdList": null,
+    },
+};
+
+/**
+ * Matches in [startDate, endDate] inclusive (YYYY-MM-DD). Uses HKJC GraphQL with `showAllMatch`
+ * so settled fixtures appear — same JSON source as the football results area on bet.hkjc.com (no HTML scraping).
+ * @see https://bet.hkjc.com/en/football/results
+ */
+export async function ApiHKJCMatchesByDateRange(startDate: string, endDate: string): Promise<HKJC[]> {
+    const oddsTypes = ["HAD"];
+    try {
+        const payload = {
+            ...base,
+            variables: {
+                ...base.variables,
+                startDate,
+                endDate,
+                startIndex: 1,
+                endIndex: 1000,
+                showAllMatch: true,
+                matchIds: null,
+                tournIds: null,
+                fbOddsTypes: oddsTypes,
+                fbOddsTypesM: oddsTypes,
+                featuredMatchesOnly: false,
+                inplayOnly: false,
+                earlySettlementOnly: false,
+            },
+        };
+        const res = await API.POST("https://info.cld.hkjc.com/graphql/base/", payload);
+        if (res.status !== 200 || !res.data?.data?.matches) return [];
+        const matches = (res.data.data.matches as HKJC[]) || [];
+        console.log("[ApiHKJCMatchesByDateRange]", startDate, "..", endDate, "→", matches.length, "matches");
+        return matches;
+    } catch (e) {
+        console.warn("[ApiHKJCMatchesByDateRange]", e);
+        return [];
     }
 }
-    ;  

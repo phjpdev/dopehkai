@@ -16,7 +16,7 @@ import { ApiTopScoreInjured } from "../data/api-topscore-injured";
 import { IaProbality } from "../service/ia_probability";
 import { GetFixture } from "../service/getFixture";
 import ExcelJS from 'exceljs';
-import { ApiHKJC, ApiHKJCMatchList, ApiHKJCMatchById } from "../data/api-hkjc";
+import { ApiHKJC, ApiHKJCMatchList, ApiHKJCMatchById, ApiHKJCMatchesByDateRange } from "../data/api-hkjc";
 import { FootyLogicRecentForm } from "model/footylogic_recentform.model";
 import { HKJC } from "model/hkjc.model";
 import { extractHKJCMarkets } from "../service/hkjcMarkets";
@@ -31,6 +31,7 @@ import {
     isMatchAdminDailyEditable,
 } from "../service/adminDailyEditableMatches";
 import { displaySnapshotFromMatch } from "../service/analysisDisplaySnapshot";
+import { enrichMatchFromHkjcGraphql } from "../service/hkjcMatchEnrichment";
 
 /** Map FootyLogic list event → Firestore match fields (HKJC sync removes finished games; past-results needs this). */
 function footyEventToMatchPartial(ev: Event): Partial<Match> {
@@ -735,6 +736,19 @@ class MatchController {
                 zhCN: awayName || "",
             },
         };
+        const needsHkjc =
+            sparseTeamLabel(out.homeTeamName) ||
+            sparseTeamLabel(out.awayTeamName) ||
+            !out.homeTeamLogo ||
+            !out.awayTeamLogo;
+        if (needsHkjc) {
+            try {
+                const hk = await ApiHKJCMatchById(id);
+                if (hk) return enrichMatchFromHkjcGraphql(out, hk);
+            } catch (e) {
+                console.warn("[tryBuildMatchFromAnalysisDoc] HKJC by id failed", id, e);
+            }
+        }
         return out;
     }
 
@@ -1689,6 +1703,33 @@ class MatchController {
                 req.query.light === "true";
             const { todayHkt, startYmd, endYmd, windowStartMs, windowEndMs } = getAdminPastTwoDaysWindowHkt();
 
+            /** Same pool as bet.hkjc.com football results: HKJC GraphQL by date — team names + ids for crest URLs. */
+            const hkjcByIdPastWindow = new Map<string, HKJC>();
+            try {
+                const hkjcPast = await ApiHKJCMatchesByDateRange(startYmd, endYmd);
+                for (const row of hkjcPast) {
+                    if (row.id) hkjcByIdPastWindow.set(row.id, row);
+                }
+            } catch (e) {
+                console.warn("[getPastMatchResults] HKJC results window failed", e);
+            }
+
+            const eventsById = new Map<string, Event>();
+            try {
+                const gamesRes = await API.GET(Global.footylogicGames);
+                if (gamesRes.status === 200 && gamesRes.data?.data) {
+                    for (const daum of gamesRes.data.data as Daum[]) {
+                        for (const ev of daum.events || []) {
+                            const evMs = footyEventKickOffMs(ev);
+                            if (evMs == null || evMs < windowStartMs || evMs > windowEndMs) continue;
+                            eventsById.set(ev.eventId, ev);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn("[getPastMatchResults] footylogicGames failed", e);
+            }
+
             const matchesCol = collection(db, Tables.matches);
             const snapshot = await getDocs(matchesCol);
             type Row = {
@@ -1757,7 +1798,11 @@ class MatchController {
             };
 
             const runGeminiBranch = async (id: string, data: Match, hadComplete: boolean) => {
-                const enriched = await enrichMatchFromFootyDetailsIfSparse(id, data);
+                let m: Match = data;
+                const hkRow = hkjcByIdPastWindow.get(id);
+                if (hkRow) m = enrichMatchFromHkjcGraphql(m, hkRow);
+                m = overlayFootyGamesListOntoMatch(m, eventsById.get(id));
+                const enriched = await enrichMatchFromFootyDetailsIfSparse(id, m);
                 let geminiStatus: Row["geminiStatus"] = "cached";
                 let geminiMessage: string | undefined;
                 let ia = enriched.ia as ResultIA | undefined;
@@ -1787,22 +1832,6 @@ class MatchController {
                 pushRowFromMatchData(id, rowData, geminiStatus, geminiMessage, ia);
                 await upsertAnalysisStubFromPastResult(id, rowData, ia);
             };
-
-            const eventsById = new Map<string, Event>();
-            try {
-                const gamesRes = await API.GET(Global.footylogicGames);
-                if (gamesRes.status === 200 && gamesRes.data?.data) {
-                    for (const daum of gamesRes.data.data as Daum[]) {
-                        for (const ev of daum.events || []) {
-                            const evMs = footyEventKickOffMs(ev);
-                            if (evMs == null || evMs < windowStartMs || evMs > windowEndMs) continue;
-                            eventsById.set(ev.eventId, ev);
-                        }
-                    }
-                }
-            } catch (e) {
-                console.warn("[getPastMatchResults] footylogicGames failed", e);
-            }
 
             const seenIds = new Set<string>();
 
@@ -1912,11 +1941,7 @@ class MatchController {
                         picks?.had?.bestPick &&
                         picks?.handicap?.bestPick &&
                         picks?.corners?.bestPick;
-                    await runGeminiBranch(
-                        id,
-                        overlayFootyGamesListOntoMatch(merged, eventsById.get(id)),
-                        !!hasCompletePicks
-                    );
+                    await runGeminiBranch(id, merged, !!hasCompletePicks);
                 }
             } catch (e) {
                 console.warn("[getPastMatchResults] analysis primary pass failed", e);
@@ -1963,11 +1988,7 @@ class MatchController {
                     cachedPicks?.handicap?.bestPick &&
                     cachedPicks?.corners?.bestPick;
 
-                await runGeminiBranch(
-                    id,
-                    overlayFootyGamesListOntoMatch(data, eventsById.get(id)),
-                    !!hasCompletePicks
-                );
+                await runGeminiBranch(id, data, !!hasCompletePicks);
             }
 
             rows.sort(
