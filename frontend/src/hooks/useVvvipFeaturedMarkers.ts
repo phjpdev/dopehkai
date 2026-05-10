@@ -24,7 +24,7 @@ function extractMatchsFromCache(queryClient: QueryClient): Match[] | null {
     return merged.length ? merged : null;
 }
 
-/** Admin / subadmin / active VVVIP member — can see featured markers and 預測比分 panel. */
+/** Admin / subadmin / active VVVIP member — can see featured markers and full 預測比分 (others see teaser). */
 export function useCanSeeVvvipFeaturedContent(): boolean {
     const { userRole } = useAuthStore();
     const [vvvipOk, setVvvipOk] = useState(false);

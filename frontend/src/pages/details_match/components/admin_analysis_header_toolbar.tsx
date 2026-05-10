@@ -5,6 +5,7 @@ import type { AdminAnalysisEdits, Probability, ResultIA } from "../../../models/
 import ThemedText from "../../../components/themedText";
 import { formatPickLabel } from "./pick_card";
 import { getTeamNameInCurrentLanguage } from "../../../ultis/languageUtils";
+import { computeDefaultPredictedScores } from "./predicted_scores_compute";
 
 type PickKey = "goals" | "had" | "handicap" | "corners";
 
@@ -186,6 +187,10 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
     const [awayPill, setAwayPill] = useState(0);
     const [homeStat, setHomeStat] = useState("");
     const [awayStat, setAwayStat] = useState("");
+    const [predR1Home, setPredR1Home] = useState(0);
+    const [predR1Away, setPredR1Away] = useState(0);
+    const [predR2Home, setPredR2Home] = useState(0);
+    const [predR2Away, setPredR2Away] = useState(0);
     const prevModalOpen = useRef(false);
 
     useEffect(() => {
@@ -223,7 +228,27 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
         const stats = statWinRateBaselines(displayData);
         setHomeStat(stats.home.replace(/%/g, ""));
         setAwayStat(stats.away.replace(/%/g, ""));
-    }, [visible, modalOpen, displayData, ia, edits?.pickDisplay, edits?.pickConfidenceDisplay, edits?.iaWinPctDisplay, edits?.statsWinRateDisplay]);
+        const baselineScores = computeDefaultPredictedScores(displayData);
+        const ps = edits?.predictedScoreDisplay;
+        const pickGoal = (stored: unknown, auto: number): number =>
+            typeof stored === "number" && Number.isFinite(stored)
+                ? Math.round(Math.max(0, Math.min(20, stored)))
+                : auto;
+        setPredR1Home(pickGoal(ps?.row1Home, baselineScores.row1.home));
+        setPredR1Away(pickGoal(ps?.row1Away, baselineScores.row1.away));
+        setPredR2Home(pickGoal(ps?.row2Home, baselineScores.row2.home));
+        setPredR2Away(pickGoal(ps?.row2Away, baselineScores.row2.away));
+    }, [
+        visible,
+        modalOpen,
+        displayData,
+        ia,
+        edits?.pickDisplay,
+        edits?.pickConfidenceDisplay,
+        edits?.iaWinPctDisplay,
+        edits?.statsWinRateDisplay,
+        edits?.predictedScoreDisplay,
+    ]);
 
     if (!visible || !ia || !displayData) return null;
 
@@ -250,6 +275,12 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
                 statsWinRateDisplay: {
                     home: homeStat.trim(),
                     away: awayStat.trim(),
+                },
+                predictedScoreDisplay: {
+                    row1Home: Math.round(Math.max(0, Math.min(20, predR1Home))),
+                    row1Away: Math.round(Math.max(0, Math.min(20, predR1Away))),
+                    row2Home: Math.round(Math.max(0, Math.min(20, predR2Home))),
+                    row2Away: Math.round(Math.max(0, Math.min(20, predR2Away))),
                 },
             });
             setModalOpen(false);
@@ -352,6 +383,86 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
                                 </label>
                             </div>
                         ))}
+
+                        <div className="mt-4 space-y-3 border-t border-black/10 pt-4">
+                            <p className="text-center text-[11px] font-bold text-black/70">預測比分（主 : 客）</p>
+                            <div className="grid grid-cols-2 gap-2">
+                                <p className="col-span-2 text-[10px] font-semibold text-black/70">第一列 · 配「客勝概率」條</p>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-[10px] text-neutral-500">{homeTeamLabel} · 入球</span>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={20}
+                                        className={MODAL_INPUT_CLASS}
+                                        value={predR1Home}
+                                        disabled={busy}
+                                        onChange={(e) =>
+                                            setPredR1Home(
+                                                Math.round(
+                                                    Math.max(0, Math.min(20, Number(e.target.value) || 0)),
+                                                ),
+                                            )
+                                        }
+                                    />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-[10px] text-neutral-500">{awayTeamLabel} · 入球</span>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={20}
+                                        className={MODAL_INPUT_CLASS}
+                                        value={predR1Away}
+                                        disabled={busy}
+                                        onChange={(e) =>
+                                            setPredR1Away(
+                                                Math.round(
+                                                    Math.max(0, Math.min(20, Number(e.target.value) || 0)),
+                                                ),
+                                            )
+                                        }
+                                    />
+                                </label>
+                                <p className="col-span-2 text-[10px] font-semibold text-black/70 pt-1">第二列 · 配「主勝概率」條</p>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-[10px] text-neutral-500">{homeTeamLabel} · 入球</span>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={20}
+                                        className={MODAL_INPUT_CLASS}
+                                        value={predR2Home}
+                                        disabled={busy}
+                                        onChange={(e) =>
+                                            setPredR2Home(
+                                                Math.round(
+                                                    Math.max(0, Math.min(20, Number(e.target.value) || 0)),
+                                                ),
+                                            )
+                                        }
+                                    />
+                                </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-[10px] text-neutral-500">{awayTeamLabel} · 入球</span>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={20}
+                                        className={MODAL_INPUT_CLASS}
+                                        value={predR2Away}
+                                        disabled={busy}
+                                        onChange={(e) =>
+                                            setPredR2Away(
+                                                Math.round(
+                                                    Math.max(0, Math.min(20, Number(e.target.value) || 0)),
+                                                ),
+                                            )
+                                        }
+                                    />
+                                </label>
+                            </div>
+                        </div>
 
                         <div className="mt-4 space-y-3 border-t border-black/10 pt-4">
                             <p className="text-center text-[11px] font-bold text-black/70">主客隊顯示</p>

@@ -232,11 +232,12 @@ function DetailsMatchPage() {
         featuredMatchIds !== null &&
         featuredMatchIds.has(String(id));
 
-    const showPredictedScores =
+    /** VVVIP 精選：所有會員見框；細分資料需 ia（Admin/VVVIP 看球數與％） */
+    const showPredictedScoresBox =
         accessResolved &&
-        !!displayData?.ia &&
-        canSeeVvvipFeatured &&
-        isFeaturedForVvvipPanel;
+        isFeaturedForVvvipPanel &&
+        (Boolean(displayData?.ia) || !canSeeVvvipFeatured);
+    const showPredictedScoresDetail = showPredictedScoresBox && canSeeVvvipFeatured && Boolean(displayData?.ia);
 
     return (
         error ?
@@ -409,8 +410,11 @@ function DetailsMatchPage() {
                             ) : null
                         )}
 
-                        {showPredictedScores && displayData && (
-                            <PredictedScoresPanel probability={displayData} />
+                        {showPredictedScoresBox && displayData && (
+                            <PredictedScoresPanel
+                                probability={displayData}
+                                showFullPrediction={showPredictedScoresDetail}
+                            />
                         )}
 
                         {/* Team analysis cards: VIP+ staff see stats; normal sees two lock panels */}
@@ -418,7 +422,7 @@ function DetailsMatchPage() {
                             (canSeeVipPicks ? (
                                 <DetailsCardComponent
                                     probability={displayData}
-                                    tightStackTop={showPredictedScores}
+                                    tightStackTop={showPredictedScoresBox}
                                 />
                             ) : accessResolved ? (
                                 <>

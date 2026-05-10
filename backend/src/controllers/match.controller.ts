@@ -1355,12 +1355,21 @@ class MatchController {
                 typeof body.pickConfidenceDisplay === "object" && body.pickConfidenceDisplay
                     ? body.pickConfidenceDisplay
                     : {};
+            const scoreIn =
+                typeof body.predictedScoreDisplay === "object" && body.predictedScoreDisplay
+                    ? body.predictedScoreDisplay
+                    : {};
 
             const prev = existing.adminAnalysisEdits || {};
             const clampPct = (n: unknown): number | undefined => {
                 const x = Number(n);
                 if (!Number.isFinite(x)) return undefined;
                 return Math.round(Math.max(0, Math.min(100, x)) * 100) / 100;
+            };
+            const clampGoalDisplay = (n: unknown): number | undefined => {
+                const x = Number(n);
+                if (!Number.isFinite(x)) return undefined;
+                return Math.round(Math.max(0, Math.min(20, x)));
             };
 
             const next = {
@@ -1374,6 +1383,9 @@ class MatchController {
                 statsWinRateDisplay: { ...(prev.statsWinRateDisplay || {}) } as NonNullable<
                     Match["adminAnalysisEdits"]
                 >["statsWinRateDisplay"],
+                predictedScoreDisplay: { ...(prev.predictedScoreDisplay || {}) } as NonNullable<
+                    Match["adminAnalysisEdits"]
+                >["predictedScoreDisplay"],
             };
 
             const pickKeys = ["goals", "had", "handicap", "corners"] as const;
@@ -1398,6 +1410,14 @@ class MatchController {
                 if (Object.prototype.hasOwnProperty.call(confIn, k)) {
                     const c = clampPct((confIn as any)[k]);
                     if (c !== undefined) next.pickConfidenceDisplay![k] = c;
+                }
+            }
+
+            const scoreKeys = ["row1Home", "row1Away", "row2Home", "row2Away"] as const;
+            for (const k of scoreKeys) {
+                if (Object.prototype.hasOwnProperty.call(scoreIn, k)) {
+                    const g = clampGoalDisplay((scoreIn as any)[k]);
+                    if (g !== undefined) next.predictedScoreDisplay![k] = g;
                 }
             }
 

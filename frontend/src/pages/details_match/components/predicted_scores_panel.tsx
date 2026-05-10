@@ -1,89 +1,60 @@
 import { Probability } from "../../../models/probability";
-
-/**
- * "Goals per game" from last-games stats is often 1–6+; map it to a typical
- * full-time goal count for display (0–4) so we do not clamp everything to 5.
- */
-function goalsPerGameToDisplayGoals(raw: number, fallback: number): number {
-    const g = Number.isFinite(raw) && raw > 0 ? raw : fallback;
-    const damped = Math.min(g, 5.5) * 0.52 + 0.35;
-    return Math.max(0, Math.min(4, Math.round(damped)));
-}
-
-function parseGoalsPerGame(team: { teamGoalsFor?: string } | undefined, fallback: number): number {
-    if (!team?.teamGoalsFor) return fallback;
-    const v = parseFloat(String(team.teamGoalsFor).replace(/[^\d.]/g, ""));
-    return Number.isFinite(v) && v > 0 ? v : fallback;
-}
-
-function parseGoalsConceded(team: { teamGoalsAway?: string } | undefined, fallback: number): number {
-    if (!team?.teamGoalsAway) return fallback;
-    const v = parseFloat(String(team.teamGoalsAway).replace(/[^\d.]/g, ""));
-    return Number.isFinite(v) && v > 0 ? v : fallback;
-}
+import { computeDefaultPredictedScores } from "./predicted_scores_compute";
 
 export interface PredictedScoresPanelProps {
     probability: Probability;
+    /** When false, show the chrome only with VVVIP upsell copy (scores hidden). */
+    showFullPrediction?: boolean;
+}
+
+function resolvedPairs(probability: Probability): { row1: { home: number; away: number }; row2: { home: number; away: number } } {
+    const d = probability.adminAnalysisEdits?.predictedScoreDisplay;
+    const base = computeDefaultPredictedScores(probability);
+    const clamp = (n: unknown): number | undefined => {
+        const x = Number(n);
+        if (!Number.isFinite(x)) return undefined;
+        return Math.round(Math.max(0, Math.min(20, x)));
+    };
+    const h1 = clamp(d?.row1Home);
+    const a1 = clamp(d?.row1Away);
+    const h2 = clamp(d?.row2Home);
+    const a2 = clamp(d?.row2Away);
+    return {
+        row1:
+            h1 !== undefined && a1 !== undefined ? { home: h1, away: a1 } : base.row1,
+        row2:
+            h2 !== undefined && a2 !== undefined ? { home: h2, away: a2 } : base.row2,
+    };
 }
 
 /**
- * 預測比分 — scores from last-games attack/concede rates (damped to 0–4);
- * bar percentages from IA 1X2 (home / away). Two lines differ using model tilt.
+ * 預測比分 — baseline from last-games + IA tilt; optional admin overrides (Home : Away).
  */
-export default function PredictedScoresPanel({ probability }: PredictedScoresPanelProps) {
+export default function PredictedScoresPanel({ probability, showFullPrediction = true }: PredictedScoresPanelProps) {
     const ia = probability.ia;
-    if (!ia) return null;
+    if (showFullPrediction && !ia) return null;
 
-    let homePct = typeof ia.home === "number" ? ia.home : 0;
-    let awayPct = typeof ia.away === "number" ? ia.away : 0;
-    if (homePct <= 0 && awayPct <= 0) {
-        homePct = 50;
-        awayPct = 50;
-    }
-    const total = homePct + awayPct;
-    if (total > 0 && Math.abs(total - 100) > 0.5) {
-        homePct = (homePct / total) * 100;
-        awayPct = (awayPct / total) * 100;
-    }
-
-    const ht = probability.lastGames?.homeTeam;
-    const at = probability.lastGames?.awayTeam;
-
-    const homeAttack = parseGoalsPerGame(ht, 1.35);
-    const homeConcede = parseGoalsConceded(ht, 1.2);
-    const awayAttack = parseGoalsPerGame(at, 1.25);
-    const awayConcede = parseGoalsConceded(at, 1.15);
-
-    // Expected goals at each end: attack vs opponent defensive tendency
-    const expAwayAtHome = (awayAttack + homeConcede) / 2;
-    const expHomeAtAway = (homeAttack + awayConcede) / 2;
-
-    let a1 = goalsPerGameToDisplayGoals(expAwayAtHome, 1);
-    let h1 = goalsPerGameToDisplayGoals(expHomeAtAway, 1);
-
-    // Second line: nudge toward IA favourite so it is not identical to the first
-    let a2 = a1;
-    let h2 = h1;
-    const tiltHome = homePct > awayPct + 2;
-    const tiltAway = awayPct > homePct + 2;
-    if (tiltHome) {
-        h2 = Math.min(4, h1 + 1);
-        if (a2 === a1 && h2 === h1) a2 = Math.max(0, a1 - 1);
-    } else if (tiltAway) {
-        a2 = Math.min(4, a1 + 1);
-        if (a2 === a1 && h2 === h1) h2 = Math.max(0, h1 - 1);
-    } else {
-        // Near 50/50: show a slightly higher-tempo second line
-        h2 = Math.min(4, h1 + 1);
-        a2 = Math.min(4, a1 + 1);
-        if (a2 === a1 && h2 === h1) {
-            h2 = Math.min(4, h1 + 1);
-            a2 = Math.max(0, a1 - 1);
+    let homePct = 50;
+    let awayPct = 50;
+    if (ia) {
+        homePct = typeof ia.home === "number" ? ia.home : 0;
+        awayPct = typeof ia.away === "number" ? ia.away : 0;
+        if (homePct <= 0 && awayPct <= 0) {
+            homePct = 50;
+            awayPct = 50;
+        }
+        const total = homePct + awayPct;
+        if (total > 0 && Math.abs(total - 100) > 0.5) {
+            homePct = (homePct / total) * 100;
+            awayPct = (awayPct / total) * 100;
         }
     }
 
-    const scoreLine1 = `${a1} : ${h1}`;
-    const scoreLine2 = `${a2} : ${h2}`;
+    const pairs = showFullPrediction && ia ? resolvedPairs(probability) : null;
+    const scoreLine1 =
+        pairs && showFullPrediction ? `${pairs.row1.home} : ${pairs.row1.away}` : "";
+    const scoreLine2 =
+        pairs && showFullPrediction ? `${pairs.row2.home} : ${pairs.row2.away}` : "";
 
     const awayRowPct = Math.max(5, Math.min(95, Math.round(awayPct)));
     const homeRowPct = Math.max(5, Math.min(95, Math.round(homePct)));
@@ -130,9 +101,20 @@ export default function PredictedScoresPanel({ probability }: PredictedScoresPan
                     預測比分
                 </p>
 
-                <ScoreRow score={scoreLine1} label="客勝概率" pct={awayRowPct} />
-                <div className="h-3" />
-                <ScoreRow score={scoreLine2} label="主勝概率" pct={homeRowPct} />
+                {!showFullPrediction ? (
+                    <p
+                        className="py-8 text-center text-base sm:text-lg font-semibold tracking-wide"
+                        style={{ color: "rgba(212, 175, 55, 0.92)" }}
+                    >
+                        VVVIP 會員專享
+                    </p>
+                ) : (
+                    <>
+                        <ScoreRow score={scoreLine1} label="客勝概率" pct={awayRowPct} />
+                        <div className="h-3" />
+                        <ScoreRow score={scoreLine2} label="主勝概率" pct={homeRowPct} />
+                    </>
+                )}
             </div>
         </div>
     );

@@ -75,6 +75,12 @@ export interface AdminAnalysisEdits {
     }>;
     iaWinPctDisplay?: Partial<{ home: number; away: number }>;
     statsWinRateDisplay?: Partial<{ home: string; away: string }>;
+    predictedScoreDisplay?: Partial<{
+        row1Home: number;
+        row1Away: number;
+        row2Home: number;
+        row2Away: number;
+    }>;
 }
 
 export interface PickResult {

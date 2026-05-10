@@ -7,6 +7,13 @@ export interface AdminAnalysisEdits {
     pickConfidenceDisplay?: Partial<Record<"goals" | "had" | "handicap" | "corners", number>>;
     iaWinPctDisplay?: Partial<{ home: number; away: number }>;
     statsWinRateDisplay?: Partial<{ home: string; away: string }>;
+    /** 預測比分 — display order is 主隊:客隊 (must set both goals per row for that row to override). */
+    predictedScoreDisplay?: Partial<{
+        row1Home: number;
+        row1Away: number;
+        row2Home: number;
+        row2Away: number;
+    }>;
 }
 
 export interface Probability {
