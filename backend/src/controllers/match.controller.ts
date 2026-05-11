@@ -73,6 +73,69 @@ function footyEventKickOffMs(ev: Event): number | null {
     return null;
 }
 
+/** One GET /match/match-data list element from HKJC GraphQL (live list or results date-range). */
+function listRowFromHkjc(m: HKJC, dbById: Record<string, any>): any | null {
+    let matchDate = m.matchDate?.split("+")[0].split("T")[0] ?? "";
+    const kickOffTime = m.kickOffTime ?? "";
+    let kickOff: string;
+    if (kickOffTime && (kickOffTime.includes("T") || kickOffTime.includes(" "))) {
+        kickOff = kickOffTime;
+    } else {
+        kickOff = `${matchDate} ${kickOffTime}`;
+    }
+    try {
+        const t = kickOff.includes("T") ? new Date(kickOff) : new Date(kickOff.replace(" ", "T"));
+        if (isNaN(t.getTime())) return null;
+    } catch {
+        return null;
+    }
+    const [y, mo, d] = matchDate.split("-");
+    const kickOffDate = mo && d && y ? `${mo}/${d}/${y}` : "";
+    const kickOffDateLocal = mo && d && y ? `${d}/${mo}/${y}` : "";
+
+    const base: any = {
+        id: m.id,
+        eventId: m.id,
+        kickOff,
+        kickOffDate,
+        kickOffDateLocal,
+        kickOffTime: m.kickOffTime ?? "",
+        homeTeamName: m.homeTeam?.name_ch || m.homeTeam?.name_en || "",
+        awayTeamName: m.awayTeam?.name_ch || m.awayTeam?.name_en || "",
+        homeTeamNameEn: m.homeTeam?.name_en,
+        awayTeamNameEn: m.awayTeam?.name_en,
+        competitionName: m.tournament?.name_ch || m.tournament?.name_en || "",
+        competitionId: parseInt(m.tournament?.id || "0", 10),
+        matchOutcome: "",
+        homeForm: "",
+        awayForm: "",
+        homeLanguages: {
+            en: m.homeTeam?.name_en || "",
+            zh: m.homeTeam?.name_ch || "",
+            zhCN: m.homeTeam?.name_ch || "",
+        },
+        awayLanguages: {
+            en: m.awayTeam?.name_en || "",
+            zh: m.awayTeam?.name_ch || "",
+            zhCN: m.awayTeam?.name_ch || "",
+        },
+    };
+
+    const dbData = dbById[m.id];
+    if (dbData) {
+        return {
+            ...base,
+            ...dbData,
+            id: m.id,
+            eventId: m.id,
+            kickOff: base.kickOff,
+            kickOffDate: base.kickOffDate,
+            kickOffDateLocal: base.kickOffDateLocal,
+        };
+    }
+    return base;
+}
+
 function sparseTeamLabel(s?: string): boolean {
     return !s?.trim() || s.trim() === "—";
 }
@@ -512,58 +575,8 @@ class MatchController {
             // Preferred path: HKJC is source of truth when it returns matches
             if (hkjc && hkjc.length > 0) {
                 for (const m of hkjc) {
-                    let matchDate = m.matchDate?.split("+")[0].split("T")[0] ?? "";
-                    const kickOffTime = m.kickOffTime ?? "";
-                    let kickOff: string;
-                    if (kickOffTime && (kickOffTime.includes("T") || kickOffTime.includes(" "))) {
-                        kickOff = kickOffTime;
-                    } else {
-                        kickOff = `${matchDate} ${kickOffTime}`;
-                    }
-                    try {
-                        const t = kickOff.includes("T") ? new Date(kickOff) : new Date(kickOff.replace(" ", "T"));
-                        if (isNaN(t.getTime())) continue;
-                    } catch {
-                        continue;
-                    }
-                    const [y, mo, d] = matchDate.split("-");
-                    const kickOffDate = mo && d && y ? `${mo}/${d}/${y}` : "";
-                    const kickOffDateLocal = mo && d && y ? `${d}/${mo}/${y}` : "";
-
-                    const base: any = {
-                        id: m.id,
-                        eventId: m.id,
-                        kickOff,
-                        kickOffDate,
-                        kickOffDateLocal,
-                        kickOffTime: m.kickOffTime ?? "",
-                        homeTeamName: m.homeTeam?.name_ch || m.homeTeam?.name_en || "",
-                        awayTeamName: m.awayTeam?.name_ch || m.awayTeam?.name_en || "",
-                        homeTeamNameEn: m.homeTeam?.name_en,
-                        awayTeamNameEn: m.awayTeam?.name_en,
-                        competitionName: m.tournament?.name_ch || m.tournament?.name_en || "",
-                        competitionId: parseInt(m.tournament?.id || "0", 10),
-                        matchOutcome: "",
-                        homeForm: "",
-                        awayForm: "",
-                        homeLanguages: {
-                            en: m.homeTeam?.name_en || "",
-                            zh: m.homeTeam?.name_ch || "",
-                            zhCN: m.homeTeam?.name_ch || "",
-                        },
-                        awayLanguages: {
-                            en: m.awayTeam?.name_en || "",
-                            zh: m.awayTeam?.name_ch || "",
-                            zhCN: m.awayTeam?.name_ch || "",
-                        },
-                    };
-
-                    const dbData = dbById[m.id];
-                    if (dbData) {
-                        list.push({ ...base, ...dbData, id: m.id, eventId: m.id, kickOff: base.kickOff, kickOffDate: base.kickOffDate, kickOffDateLocal: base.kickOffDateLocal });
-                    } else {
-                        list.push(base);
-                    }
+                    const row = listRowFromHkjc(m, dbById);
+                    if (row) list.push(row);
                 }
             } else {
                 // Fallback: HKJC returned 0 matches (API down or no data).
@@ -589,28 +602,35 @@ class MatchController {
                 }
             }
 
-            for (const m of hkjc || []) {
-                let matchDate = m.matchDate?.split("+")[0].split("T")[0] ?? "";
-                const kickOffTime = m.kickOffTime ?? "";
-                let kickOff: string;
-                if (kickOffTime && (kickOffTime.includes("T") || kickOffTime.includes(" "))) {
-                    kickOff = kickOffTime;
-                } else {
-                    kickOff = `${matchDate} ${kickOffTime}`;
+            // Live HKJC merged feed omits many in-play / settled fixtures; sync also deletes them from DB.
+            // Merge HKJC results date-range (showAllMatch) for the same HKT window as admin past-results
+            // so earlier kickoffs today stay visible on the main list.
+            const seenListIds = new Set(
+                list.map((x: any) => String(x.id || x.eventId || "")).filter(Boolean),
+            );
+            try {
+                const { startYmd, endYmd } = getAdminPastTwoDaysWindowHkt();
+                const windowRows = await ApiHKJCMatchesByDateRange(startYmd, endYmd);
+                for (const m of windowRows) {
+                    const mid = m.id ? String(m.id) : "";
+                    if (!mid || seenListIds.has(mid)) continue;
+                    const row = listRowFromHkjc(m, dbById);
+                    if (row) {
+                        seenListIds.add(mid);
+                        list.push(row);
+                    }
                 }
-                try {
-                    const t = kickOff.includes("T") ? new Date(kickOff) : new Date(kickOff.replace(" ", "T"));
-                    if (isNaN(t.getTime())) continue;
-                } catch {
-                    continue;
-                }
+            } catch (e) {
+                console.warn("[getMatchs] merge HKJC results-window fixtures failed:", e);
             }
 
-            const futureMatches = list.sort((a: any, b: any) => new Date(a.kickOff).getTime() - new Date(b.kickOff).getTime());
-            futureMatches.forEach(fillListIAFromPredictions);
+            const sortedMatches = list.sort(
+                (a: any, b: any) => new Date(a.kickOff).getTime() - new Date(b.kickOff).getTime(),
+            );
+            sortedMatches.forEach(fillListIAFromPredictions);
 
             // Fetch logos for matches that don't have them (api-sports.io via GetFixture), like topx-betting-mern
-            const listWithLogos = await fetchLogosForList(futureMatches);
+            const listWithLogos = await fetchLogosForList(sortedMatches);
             annotateMatchesWithAdminDailyEditable(listWithLogos);
 
             // Short TTL (60s) so list stays in sync with HKJC; avoids stale "extra" dates from Redis
