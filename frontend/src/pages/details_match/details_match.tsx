@@ -21,7 +21,7 @@ import PickCard, { formatPickLabel, LockedPickCard } from "./components/pick_car
 import DetailsCardComponent from "./components/details_card";
 import LockedAnalysisCard from "./components/locked_analysis_card";
 import PredictedScoresPanel from "./components/predicted_scores_panel";
-import { useCanSeeVvvipFeaturedContent, useVvvipFeaturedIdsForDay } from "../../hooks/useVvvipFeaturedMarkers";
+import { useCanSeeVvvipFeaturedContent } from "../../hooks/useVvvipFeaturedMarkers";
 import { AdminAnalysisHeaderToolbar } from "./components/admin_analysis_header_toolbar";
 
 function pickConfidence(p: { confidence: number } | undefined, rawCode: string | undefined): number {
@@ -58,7 +58,6 @@ function DetailsMatchPage() {
     const navigate = useNavigate();
     const { userRole } = useAuthStore();
     const canSeeVvvipFeatured = useCanSeeVvvipFeaturedContent();
-    const featuredMatchIds = useVvvipFeaturedIdsForDay(data?.kickOff);
 
     const isStaff = userRole === "admin" || userRole === "subadmin";
 
@@ -227,15 +226,12 @@ function DetailsMatchPage() {
             ? oePick.corners.trim()
             : formatPickLabel("corners", iaP?.picks?.corners?.bestPick ?? "—");
 
-    const isFeaturedForVvvipPanel =
-        Boolean(id) &&
-        featuredMatchIds !== null &&
-        featuredMatchIds.has(String(id));
-
-    /** VVVIP 精選：所有會員見框；細分資料需 ia（Admin/VVVIP 看球數與％） */
+    /**
+     * 預測比分區塊：所有場次均顯示外框。privileged（Admin／VVVIP）且已有 ia 時見波膽與％；其餘會員見「VVVIP 會員專享」。
+     * （每日精選僅用於列表標記，不再於此處限制顯示，以免與列表資料來源不一致導致整塊消失。）
+     */
     const showPredictedScoresBox =
         accessResolved &&
-        isFeaturedForVvvipPanel &&
         (Boolean(displayData?.ia) || !canSeeVvvipFeatured);
     const showPredictedScoresDetail = showPredictedScoresBox && canSeeVvvipFeatured && Boolean(displayData?.ia);
 
