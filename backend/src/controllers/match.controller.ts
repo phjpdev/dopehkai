@@ -900,7 +900,6 @@ class MatchController {
 
             // Check if we have match data from DB or games API
             if (!existingMatchData && !matchEvent && !footylogicDetails) {
-                // Fallback: match may be from HKJC only (e.g. U20 women's not in FootyLogic) or from a stale list
                 if (hkjcMatch) {
                     const m = hkjcMatch;
                     let matchDate = m.matchDate?.split("+")[0].split("T")[0] ?? "";
@@ -911,8 +910,9 @@ class MatchController {
                     const [y, mo, d] = matchDate.split("-");
                     const kickOffDate = mo && d && y ? `${mo}/${d}/${y}` : "";
                     const kickOffDateLocal = mo && d && y ? `${d}/${mo}/${y}` : "";
-                    const minimalMatch: Match = {
-                        id: id,
+                    // Passed fixtures often disappear from FootyLogic's games list; do not return a bare HKJC row
+                    // (no IA / lastGames). Seed `matchEvent` and continue through the normal enrichment pipeline.
+                    matchEvent = {
                         eventId: id,
                         kickOff,
                         kickOffDate,
@@ -924,33 +924,29 @@ class MatchController {
                         awayTeamNameEn: m.awayTeam?.name_en,
                         competitionName: m.tournament?.name_ch || m.tournament?.name_en || "",
                         competitionId: parseInt(m.tournament?.id || "0", 10),
-                        matchOutcome: "",
-                        homeForm: "",
-                        awayForm: "",
-                        homeLanguages: { en: m.homeTeam?.name_en || "", zh: m.homeTeam?.name_ch || "", zhCN: m.homeTeam?.name_ch || "" },
-                        awayLanguages: { en: m.awayTeam?.name_en || "", zh: m.awayTeam?.name_ch || "", zhCN: m.awayTeam?.name_ch || "" },
-                    } as Match;
-                    const matchRef = doc(db, Tables.matches, id);
-                    await setDoc(matchRef, { ...minimalMatch, analysis_status: "pending", analysis_updated_at: null }, { merge: true });
-                    await cacheDel(CacheKeys.matchDetail(id));
-                    await cacheDel(CacheKeys.matchesList(false));
-                    await cacheDel(CacheKeys.matchesList(true));
-                    await cacheSet(CacheKeys.matchDetail(id), minimalMatch, 300);
-                    console.log("[getMatchDetails] Returning HKJC-only match (no FootyLogic data):", id);
-                    await MatchController.attachAdminDailyEditableToMatch(minimalMatch);
-                    return res.json(minimalMatch);
+                    } as any;
+                    console.log(
+                        "[getMatchDetails] Seeded matchEvent from HKJC (FootyLogic list/details missing); running full enrichment:",
+                        id,
+                    );
+                } else {
+                    const analysisOnly = await MatchController.tryBuildMatchFromAnalysisDoc(id);
+                    if (analysisOnly) {
+                        fillIAFromPredictions(analysisOnly);
+                        syncFormFieldsFromLastGames(analysisOnly);
+                        await cacheSet(CacheKeys.matchDetail(id), analysisOnly, 300);
+                        console.log(
+                            "[getMatchDetails] Returning analysis-only after APIs missed (id may be finished / off HKJC):",
+                            id,
+                        );
+                        await MatchController.attachAdminDailyEditableToMatch(analysisOnly);
+                        return res.json(analysisOnly);
+                    }
+                    console.error(
+                        "[getMatchDetails] Match not found in database, games API, details API, or HKJC",
+                    );
+                    return res.status(404).json({ error: "Match not found" });
                 }
-                const analysisOnly = await MatchController.tryBuildMatchFromAnalysisDoc(id);
-                if (analysisOnly) {
-                    fillIAFromPredictions(analysisOnly);
-                    syncFormFieldsFromLastGames(analysisOnly);
-                    await cacheSet(CacheKeys.matchDetail(id), analysisOnly, 300);
-                    console.log("[getMatchDetails] Returning analysis-only after APIs missed (id may be finished / off HKJC):", id);
-                    await MatchController.attachAdminDailyEditableToMatch(analysisOnly);
-                    return res.json(analysisOnly);
-                }
-                console.error("[getMatchDetails] Match not found in database, games API, details API, or HKJC");
-                return res.status(404).json({ error: 'Match not found' });
             }
 
             // If we have existing match data but no matchEvent from games API, return DB data
