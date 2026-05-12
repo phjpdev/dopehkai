@@ -1685,11 +1685,43 @@ class MatchController {
                 }
             }
 
+            /**
+             * Past matches lose their HKJC odds + ML predictions once HKJC removes the
+             * fixture. Without this fallback, the analyse endpoint 404s and the match
+             * detail screen stays stuck on "產生統計數據" forever. When we still have
+             * the last-games stats from FootyLogic we can synthesise a baseline 1X2
+             * split from the two teams' own season win rates so Gemini can run.
+             */
+            if (homeWinRate == null || awayWinRate == null) {
+                const ht = matchData.lastGames?.homeTeam;
+                const at = matchData.lastGames?.awayTeam;
+                const hPlayed = Number(ht?.teamPlayed);
+                const aPlayed = Number(at?.teamPlayed);
+                if (Number.isFinite(hPlayed) && hPlayed > 0 && Number.isFinite(aPlayed) && aPlayed > 0) {
+                    const hWin = Number(ht?.teamWin) || 0;
+                    const aWin = Number(at?.teamWin) || 0;
+                    const hRate = (hWin / hPlayed) * 100;
+                    const aRate = (aWin / aPlayed) * 100;
+                    const sum = hRate + aRate;
+                    if (sum > 0) {
+                        homeWinRate = (hRate / sum) * 100;
+                        awayWinRate = (aRate / sum) * 100;
+                    } else {
+                        homeWinRate = 50;
+                        awayWinRate = 50;
+                    }
+                } else if (matchData.lastGames?.homeTeam && matchData.lastGames?.awayTeam) {
+                    // We have lastGames but the played counts are unusable — still let Gemini run on form data.
+                    homeWinRate = 50;
+                    awayWinRate = 50;
+                }
+            }
+
             if (homeWinRate == null || awayWinRate == null) {
                 return {
                     ok: false as const,
                     reason: "no_predictions" as const,
-                    message: "No ML predictions, HKJC 1X2 implied %, or stored IA win rates for this match.",
+                    message: "No ML predictions, HKJC 1X2 implied %, stored IA win rates, or last-games stats for this match.",
                 };
             }
 

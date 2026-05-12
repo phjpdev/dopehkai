@@ -82,9 +82,24 @@ function DetailsMatchPage() {
         }
     }, [userRole, navigate]);
 
-    // Auto-generate ia when missing
+    // Auto-generate ia when missing (covers upcoming AND past fixtures – backend now
+    // derives a synthetic 1X2 split from lastGames if HKJC odds are no longer available).
     useEffect(() => {
         if (!data || hasGenerated || loadingGenerate || !id || data.ia) return;
+
+        const runAnalyze = () =>
+            API.GET(AppGlobal.baseURL + "match/match-analyze/" + id)
+                .then((analyzeRes) => {
+                    if (analyzeRes.status === 200 && analyzeRes.data) {
+                        queryClient.setQueryData(['probability', id], (oldData: Probability) => {
+                            if (!oldData) return oldData;
+                            return { ...oldData, ia: analyzeRes.data };
+                        });
+                    } else {
+                        /** Past match w/o stats – clear the gate so a manual retry works. */
+                        setHasGenerated(false);
+                    }
+                });
 
         if (!data.predictions) {
             setLoadingGenerate(true);
@@ -93,17 +108,11 @@ function DetailsMatchPage() {
                 .then((refreshRes) => {
                     if (refreshRes.status === 200 && refreshRes.data) {
                         queryClient.setQueryData(['probability', id], refreshRes.data);
-                        if (refreshRes.data.predictions && !refreshRes.data.ia) {
-                            return API.GET(AppGlobal.baseURL + "match/match-analyze/" + id)
-                                .then((analyzeRes) => {
-                                    if (analyzeRes.status === 200 && analyzeRes.data) {
-                                        queryClient.setQueryData(['probability', id], (oldData: Probability) => {
-                                            if (!oldData) return oldData;
-                                            return { ...oldData, ia: analyzeRes.data };
-                                        });
-                                    }
-                                });
+                        if (!refreshRes.data.ia) {
+                            return runAnalyze();
                         }
+                    } else {
+                        return runAnalyze();
                     }
                 })
                 .catch(() => { setHasGenerated(false); })
@@ -111,15 +120,7 @@ function DetailsMatchPage() {
         } else {
             setHasGenerated(true);
             setLoadingGenerate(true);
-            API.GET(AppGlobal.baseURL + "match/match-analyze/" + id)
-                .then((res) => {
-                    if (res.status === 200 && res.data) {
-                        queryClient.setQueryData(['probability', id], (oldData: Probability) => {
-                            if (!oldData) return oldData;
-                            return { ...oldData, ia: res.data };
-                        });
-                    }
-                })
+            runAnalyze()
                 .catch(() => { setHasGenerated(false); })
                 .finally(() => { setLoadingGenerate(false); });
         }
@@ -151,19 +152,27 @@ function DetailsMatchPage() {
     }, [data, picksAttempted, generatingPicks, id, queryClient, userRole, isVip]);
 
     async function generateIA() {
-        if (loadingGenerate || hasGenerated || !id) return;
+        // Manual retry – only block on an in-flight call, not on hasGenerated (the
+        // auto pass may have already toggled it for a past match without odds).
+        if (loadingGenerate || !id) return;
         setLoadingGenerate(true);
         setHasGenerated(true);
         setPicksAttempted(false);
-        const res = await API.GET(AppGlobal.baseURL + "match/match-analyze/" + id);
-        if (res.status === 200 && res.data) {
-            queryClient.setQueryData(['probability', id], (oldData: Probability) => ({
-                ...oldData,
-                ia: res.data
-            }));
-            queryClient.invalidateQueries({ queryKey: ['probability', id] });
+        try {
+            const res = await API.GET(AppGlobal.baseURL + "match/match-analyze/" + id);
+            if (res.status === 200 && res.data) {
+                queryClient.setQueryData(['probability', id], (oldData: Probability) => ({
+                    ...oldData,
+                    ia: res.data
+                }));
+                queryClient.invalidateQueries({ queryKey: ['probability', id] });
+            } else {
+                /** Allow another retry if backend still couldn't analyse. */
+                setHasGenerated(false);
+            }
+        } finally {
+            setLoadingGenerate(false);
         }
-        setLoadingGenerate(false);
     }
 
     // List batch analysis supplies home/away %; keep full `ia` from match detail (especially `picks`) so it is never overwritten by the slim analysis map.

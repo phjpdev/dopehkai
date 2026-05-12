@@ -6,7 +6,14 @@ export interface PredictedScorePair {
 }
 
 /**
- * 預測比分 baseline: Home : Away integers (0–4) from last-games rates + IA tilt (same logic as legacy panel).
+ * 預測比分 baselines (Home : Away integers 0–5).
+ *
+ * Row1 is always paired with 客勝概率 (away-win row) in the UI, Row2 with 主勝概率
+ * (home-win row), so each row must show a score consistent with its own label –
+ * row1: away > home, row2: home > away. The magnitude/margin is shaped from
+ * last-games scoring rates plus an IA tilt; the strict winner enforcement makes
+ * the two displayed scorelines match their own probability labels even when the
+ * raw "average goals" baseline would have favoured the other side.
  */
 export function computeDefaultPredictedScores(probability: Probability): {
     row1: PredictedScorePair;
@@ -14,7 +21,7 @@ export function computeDefaultPredictedScores(probability: Probability): {
 } {
     const ia = probability.ia;
     if (!ia) {
-        return { row1: { home: 1, away: 1 }, row2: { home: 1, away: 1 } };
+        return { row1: { home: 1, away: 2 }, row2: { home: 2, away: 1 } };
     }
 
     let homePct = typeof ia.home === "number" ? ia.home : 0;
@@ -40,32 +47,45 @@ export function computeDefaultPredictedScores(probability: Probability): {
     const expAwayAtHome = (awayAttack + homeConcede) / 2;
     const expHomeAtAway = (homeAttack + awayConcede) / 2;
 
-    const away1 = goalsPerGameToDisplayGoals(expAwayAtHome, 1);
-    const home1 = goalsPerGameToDisplayGoals(expHomeAtAway, 1);
+    const baseHome = goalsPerGameToDisplayGoals(expHomeAtAway, 1);
+    const baseAway = goalsPerGameToDisplayGoals(expAwayAtHome, 1);
 
-    let away2 = away1;
-    let home2 = home1;
-    const tiltHome = homePct > awayPct + 2;
-    const tiltAway = awayPct > homePct + 2;
-    if (tiltHome) {
-        home2 = Math.min(4, home1 + 1);
-        if (away2 === away1 && home2 === home1) away2 = Math.max(0, away1 - 1);
-    } else if (tiltAway) {
-        away2 = Math.min(4, away1 + 1);
-        if (away2 === away1 && home2 === home1) home2 = Math.max(0, home1 - 1);
-    } else {
-        home2 = Math.min(4, home1 + 1);
-        away2 = Math.min(4, away1 + 1);
-        if (away2 === away1 && home2 === home1) {
-            home2 = Math.min(4, home1 + 1);
-            away2 = Math.max(0, away1 - 1);
-        }
-    }
+    /** Heavier IA tilt (>30 pp gap) widens the favoured side's scoreline by an extra goal. */
+    const gap = Math.abs(homePct - awayPct);
+    const heavyTilt = gap >= 30;
+    const homeFavoured = homePct >= awayPct;
+    const homeMargin = heavyTilt && homeFavoured ? 2 : 1;
+    const awayMargin = heavyTilt && !homeFavoured ? 2 : 1;
 
     return {
-        row1: { home: home1, away: away1 },
-        row2: { home: home2, away: away2 },
+        row1: makeAwayWinScore(baseHome, baseAway, awayMargin),
+        row2: makeHomeWinScore(baseHome, baseAway, homeMargin),
     };
+}
+
+/**
+ * Force the score to read as an away win (away > home). When the baseline
+ * already has away losing or drawing we bump away up; we never inflate both
+ * sides past the 0–4 baseline range that {@link goalsPerGameToDisplayGoals}
+ * produces.
+ */
+function makeAwayWinScore(baseHome: number, baseAway: number, margin: number): PredictedScorePair {
+    let home = baseHome;
+    let away = baseAway;
+    if (away - home < margin) {
+        away = Math.min(5, home + margin);
+    }
+    return { home, away };
+}
+
+/** Mirror of {@link makeAwayWinScore} – ensures home strictly wins. */
+function makeHomeWinScore(baseHome: number, baseAway: number, margin: number): PredictedScorePair {
+    let home = baseHome;
+    let away = baseAway;
+    if (home - away < margin) {
+        home = Math.min(5, away + margin);
+    }
+    return { home, away };
 }
 
 function goalsPerGameToDisplayGoals(raw: number, fallback: number): number {
