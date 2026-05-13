@@ -58,10 +58,11 @@ function MatchsPage() {
         if (!data || !Array.isArray(data)) {
             return [] as Match[];
         }
-        // Daily “two hidden” picks MUST be derived from the same pool members see (`data` only).
-        // Staff merge past fixtures into the list for display; including those in the hash would
-        // change which IDs are chosen and members would still see matches marked for admins.
+        // Member-hidden pair: MUST use API `data` only so admins and members agree on who disappears.
         const hiddenDailyIdSet = buildAdminDailyEditableIdSet(data as Match[]);
+        const dataIdSet = new Set(
+            (data as Match[]).map((m) => String(m.id || (m as any).eventId || "")).filter(Boolean)
+        );
 
         let base = [...data] as Match[];
         const pastRows = pastTwoDaysPayload?.matches ?? [];
@@ -75,11 +76,24 @@ function MatchsPage() {
                 }
             }
         }
+        // Staff-only extras (past merges not in API list): pencils use the HK-day pair from the merged list.
+        const staffMergedHiddenPairSet =
+            isStaffList && base.length > (data as Match[]).length
+                ? buildAdminDailyEditableIdSet(base as Match[])
+                : null;
+
         const withIa = base.map((m: Match) => {
             const id = m.id || (m as any).eventId;
             const ia = id && analysisMap?.[id] ? analysisMap[id] : m.ia;
             const idStr = String(id || "");
-            const adminDailyEditableAnalysis = idStr ? hiddenDailyIdSet.has(idStr) : false;
+            let adminDailyEditableAnalysis = false;
+            if (idStr) {
+                if (dataIdSet.has(idStr)) {
+                    adminDailyEditableAnalysis = hiddenDailyIdSet.has(idStr);
+                } else if (staffMergedHiddenPairSet) {
+                    adminDailyEditableAnalysis = staffMergedHiddenPairSet.has(idStr);
+                }
+            }
             return { ...m, ia, adminDailyEditableAnalysis };
         });
         if (!isStaffList) {
