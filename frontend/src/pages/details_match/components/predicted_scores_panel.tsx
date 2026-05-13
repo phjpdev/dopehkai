@@ -1,5 +1,5 @@
 import { Probability } from "../../../models/probability";
-import { computeDefaultPredictedScores } from "./predicted_scores_compute";
+import { alignPredictedPairsWithHad, computeDefaultPredictedScores } from "./predicted_scores_compute";
 
 export interface PredictedScoresPanelProps {
     probability: Probability;
@@ -19,12 +19,15 @@ function resolvedPairs(probability: Probability): { row1: { home: number; away: 
     const a1 = clamp(d?.row1Away);
     const h2 = clamp(d?.row2Home);
     const a2 = clamp(d?.row2Away);
-    return {
-        row1:
-            h1 !== undefined && a1 !== undefined ? { home: h1, away: a1 } : base.row1,
-        row2:
-            h2 !== undefined && a2 !== undefined ? { home: h2, away: a2 } : base.row2,
-    };
+    return alignPredictedPairsWithHad(
+        {
+            row1:
+                h1 !== undefined && a1 !== undefined ? { home: h1, away: a1 } : base.row1,
+            row2:
+                h2 !== undefined && a2 !== undefined ? { home: h2, away: a2 } : base.row2,
+        },
+        probability
+    );
 }
 
 /**
@@ -110,9 +113,9 @@ export default function PredictedScoresPanel({ probability, showFullPrediction =
                     </p>
                 ) : (
                     <>
-                        <ScoreRow score={scoreLine1} label="客勝概率" pct={awayRowPct} />
+                        <ScoreRow score={scoreLine1} pct={awayRowPct} />
                         <div className="h-3" />
-                        <ScoreRow score={scoreLine2} label="主勝概率" pct={homeRowPct} />
+                        <ScoreRow score={scoreLine2} pct={homeRowPct} />
                     </>
                 )}
             </div>
@@ -120,7 +123,7 @@ export default function PredictedScoresPanel({ probability, showFullPrediction =
     );
 }
 
-function ScoreRow({ score, label, pct }: { score: string; label: string; pct: number }) {
+function ScoreRow({ score, pct }: { score: string; pct: number }) {
     const parts = score.split(/\s*:\s*/);
     const left = parts[0]?.trim() ?? "";
     const right = parts[1]?.trim() ?? "";
@@ -135,7 +138,6 @@ function ScoreRow({ score, label, pct }: { score: string; label: string; pct: nu
                 <span>{right}</span>
             </div>
             <div className="flex-1 min-w-0 flex flex-col justify-center">
-                <p className="text-white/90 text-xs sm:text-sm font-medium mb-1">{label}</p>
                 <p className="text-lg sm:text-2xl font-bold mb-1.5" style={{ color: "#e8c547" }}>
                     {pct}%
                 </p>

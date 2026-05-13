@@ -387,7 +387,7 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
                         <div className="mt-4 space-y-3 border-t border-black/10 pt-4">
                             <p className="text-center text-[11px] font-bold text-black/70">預測比分（主 : 客）</p>
                             <div className="grid grid-cols-2 gap-2">
-                                <p className="col-span-2 text-[10px] font-semibold text-black/70">第一列 · 配「客勝概率」條</p>
+                                <p className="col-span-2 text-[10px] font-semibold text-black/70">第一列（預測比分首行 · IA away% 進度條）</p>
                                 <label className="flex flex-col gap-1">
                                     <span className="text-[10px] text-neutral-500">{homeTeamLabel} · 入球</span>
                                     <input
@@ -424,7 +424,7 @@ export function AdminAnalysisHeaderToolbar({ visible, displayData, patchAdminAna
                                         }
                                     />
                                 </label>
-                                <p className="col-span-2 text-[10px] font-semibold text-black/70 pt-1">第二列 · 配「主勝概率」條</p>
+                                <p className="col-span-2 text-[10px] font-semibold text-black/70 pt-1">第二列（預測比分次行 · IA home% 進度條）</p>
                                 <label className="flex flex-col gap-1">
                                     <span className="text-[10px] text-neutral-500">{homeTeamLabel} · 入球</span>
                                     <input

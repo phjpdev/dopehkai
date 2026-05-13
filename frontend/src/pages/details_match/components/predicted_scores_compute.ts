@@ -5,15 +5,38 @@ export interface PredictedScorePair {
     away: number;
 }
 
+export type HadOutcome = "HOME" | "AWAY" | "DRAW";
+
+/** Same upper bound as manual score overrides in `predicted_scores_panel`. */
+const PREDICTED_SCORE_CAP = 20;
+
+/**
+ * 1X2 direction from IA (explicit `picks.had.bestPick`, or implied when exactly one of home/away/draw % is strictly maximal).
+ */
+export function resolveHadOutcome(probability: Probability): HadOutcome | null {
+    const ia = probability.ia;
+    if (!ia) return null;
+    const pick = ia.picks?.had?.bestPick;
+    if (pick === "HOME" || pick === "AWAY" || pick === "DRAW") return pick;
+
+    const h = typeof ia.home === "number" ? ia.home : 0;
+    const a = typeof ia.away === "number" ? ia.away : 0;
+    const d = typeof ia.draw === "number" ? ia.draw : 0;
+    const max = Math.max(h, a, d);
+    if (max <= 0) return null;
+    const winners = [h === max, a === max, d === max].filter(Boolean).length;
+    if (winners !== 1) return null;
+    if (h === max) return "HOME";
+    if (a === max) return "AWAY";
+    return "DRAW";
+}
+
 /**
  * 預測比分 baselines (Home : Away integers 0–5).
  *
- * Row1 is always paired with 客勝概率 (away-win row) in the UI, Row2 with 主勝概率
- * (home-win row), so each row must show a score consistent with its own label –
- * row1: away > home, row2: home > away. The magnitude/margin is shaped from
- * last-games scoring rates plus an IA tilt; the strict winner enforcement makes
- * the two displayed scorelines match their own probability labels even when the
- * raw "average goals" baseline would have favoured the other side.
+ * Both rows follow the same 主客和 outcome as `resolveHadOutcome`: HOME → both scorelines
+ * are home wins, AWAY → both away wins, DRAW → both draws. Magnitude comes from last-games
+ * rates plus IA tilt between home and away win shares.
  */
 export function computeDefaultPredictedScores(probability: Probability): {
     row1: PredictedScorePair;
@@ -57,9 +80,76 @@ export function computeDefaultPredictedScores(probability: Probability): {
     const homeMargin = heavyTilt && homeFavoured ? 2 : 1;
     const awayMargin = heavyTilt && !homeFavoured ? 2 : 1;
 
+    const had = resolveHadOutcome(probability);
+    if (had === "HOME") {
+        return {
+            row1: makeHomeWinScore(baseHome, baseAway, 1),
+            row2: makeHomeWinScore(baseHome, baseAway, homeMargin),
+        };
+    }
+    if (had === "AWAY") {
+        return {
+            row1: makeAwayWinScore(baseHome, baseAway, 1),
+            row2: makeAwayWinScore(baseHome, baseAway, awayMargin),
+        };
+    }
+    if (had === "DRAW") {
+        return makeDrawScorePair(baseHome, baseAway);
+    }
+
     return {
         row1: makeAwayWinScore(baseHome, baseAway, awayMargin),
         row2: makeHomeWinScore(baseHome, baseAway, homeMargin),
+    };
+}
+
+/**
+ * After admin overrides, coerce each row so it cannot contradict 主客和 (when an outcome exists).
+ */
+export function alignPredictedPairsWithHad(
+    pairs: { row1: PredictedScorePair; row2: PredictedScorePair },
+    probability: Probability
+): { row1: PredictedScorePair; row2: PredictedScorePair } {
+    const had = resolveHadOutcome(probability);
+    if (!had) return pairs;
+    return {
+        row1: alignPairToHad(pairs.row1, had),
+        row2: alignPairToHad(pairs.row2, had),
+    };
+}
+
+function alignPairToHad(p: PredictedScorePair, had: HadOutcome): PredictedScorePair {
+    if (had === "HOME") {
+        if (p.home > p.away) return clampPair(p);
+        return clampPair(makeHomeWinScore(p.home, p.away, 1));
+    }
+    if (had === "AWAY") {
+        if (p.away > p.home) return clampPair(p);
+        return clampPair(makeAwayWinScore(p.home, p.away, 1));
+    }
+    if (p.home === p.away) return clampPair(p);
+    const v = Math.max(0, Math.min(PREDICTED_SCORE_CAP, Math.round((p.home + p.away) / 2)));
+    return { home: v, away: v };
+}
+
+function clampPair(p: PredictedScorePair): PredictedScorePair {
+    return {
+        home: Math.max(0, Math.min(PREDICTED_SCORE_CAP, Math.round(p.home))),
+        away: Math.max(0, Math.min(PREDICTED_SCORE_CAP, Math.round(p.away))),
+    };
+}
+
+function makeDrawScorePair(baseHome: number, baseAway: number): {
+    row1: PredictedScorePair;
+    row2: PredictedScorePair;
+} {
+    const m = Math.max(0, Math.min(4, Math.round((baseHome + baseAway) / 2)));
+    let m2 = m < 4 ? m + 1 : m - 1;
+    if (m2 < 0) m2 = 0;
+    if (m2 === m) m2 = Math.min(4, m + 1);
+    return {
+        row1: { home: m, away: m },
+        row2: { home: m2, away: m2 },
     };
 }
 
