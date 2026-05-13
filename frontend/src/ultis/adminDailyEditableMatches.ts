@@ -1,5 +1,6 @@
 /**
- * Each calendar day (Asia/Hong_Kong), admins may edit analysis display for a deterministic pair of matches.
+ * Each calendar day (Asia/Hong_Kong), picks a deterministic pseudo-random pair of matches (Hong Kong kickoff date).
+ * Those fixtures: editable analysis semantics on the backend and omitted from `/matches` for non-staff clients.
  * Kept in sync with backend/src/service/adminDailyEditableMatches.ts
  */
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FaBasketball } from "react-icons/fa6";
+import { FaBasketball, FaPencil } from "react-icons/fa6";
 import { FaFutbol } from "react-icons/fa";
 import { NavigateFunction } from "react-router-dom";
 import { Match } from "../models/match";
@@ -19,6 +19,8 @@ export type Props = {
     showFormBadges?: boolean
     /** VVVIP/admin: marks one of the two daily “featured” matches (預測比分 on detail). */
     showVvvipFeaturedMarker?: boolean
+    /** Staff only: pencil on /matches cards that are omitted from member lists this HK day (two per kickoff-date). */
+    showDailyHiddenFromMembersBadge?: boolean
     match: Match | Probability
     navigate: NavigateFunction
 };
@@ -48,6 +50,7 @@ export function CardMatch({
     crownPosition = "centerRight",
     showFormBadges = false,
     showVvvipFeaturedMarker = false,
+    showDailyHiddenFromMembersBadge = false,
     navigate,
     match,
 }: Props) {
@@ -126,6 +129,23 @@ export function CardMatch({
 
                     {/* Main content — relative for absolute corner markers (crowns, VVVIP balls) */}
                     <div className="relative flex flex-1 items-center justify-between py-3 px-2 sm:px-4 gap-1">
+                        {showDailyHiddenFromMembersBadge && (
+                            <div
+                                className="pointer-events-none absolute bottom-1 left-1 z-10 flex items-center rounded bg-black/10 px-1 py-0.5 sm:bottom-1.5 sm:left-1.5"
+                                title={
+                                    t("matchHiddenFromMembersBadge") !== "matchHiddenFromMembersBadge"
+                                        ? t("matchHiddenFromMembersBadge")
+                                        : "Hidden from normal/VIP tiers on match list — one of today’s HK-day pair."
+                                }
+                                aria-label={
+                                    t("matchHiddenFromMembersBadge") !== "matchHiddenFromMembersBadge"
+                                        ? t("matchHiddenFromMembersBadge")
+                                        : "Hidden from members list"
+                                }
+                            >
+                                <FaPencil className="h-3 w-3 text-neutral-900/80 sm:h-3.5 sm:w-3.5" />
+                            </div>
+                        )}
                         {higherWinRate > 70 && crownPosition === "cardTopRight" && (
                             <div className="absolute top-1 right-2 sm:top-1.5 sm:right-3 z-10 pointer-events-none flex items-center">
                                 <Crown winRate={higherWinRate} size="w-3 sm:w-3.5" />

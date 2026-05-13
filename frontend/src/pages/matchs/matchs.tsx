@@ -78,6 +78,10 @@ function MatchsPage() {
         // Past fixtures merged above were never annotated on the server; re-run the same
         // deterministic daily pair logic on the full list for staff workflows.
         annotateMatchesWithAdminDailyEditable(withIa);
+        // Same two fixtures per HK day as adminDailyEditableAnalysis: hidden on this page for all members.
+        if (!isStaffList) {
+            return withIa.filter((m) => !m.adminDailyEditableAnalysis);
+        }
         return withIa;
     }, [data, analysisMap, isStaffList, pastTwoDaysPayload?.matches]);
 
@@ -414,6 +418,7 @@ function MatchsPage() {
                                                         match={m}
                                                         teams={[getTeamNameInCurrentLanguage(m.homeLanguages, m.homeTeamName), getTeamNameInCurrentLanguage(m.awayLanguages, m.awayTeamName)]}
                                                         showVvvipFeaturedMarker={canSeeVvvipFeatured && featuredForSelectedDay.has(String(matchId))}
+                                                        showDailyHiddenFromMembersBadge={isStaffList && !!m.adminDailyEditableAnalysis}
                                                     />
                                                 </div>
                                             );
@@ -471,6 +476,7 @@ function MatchsPage() {
                                                             match={m}
                                                             teams={[getTeamNameInCurrentLanguage(m.homeLanguages, m.homeTeamName), getTeamNameInCurrentLanguage(m.awayLanguages, m.awayTeamName)]}
                                                             showVvvipFeaturedMarker={canSeeVvvipFeatured && (featuredSetsByDayLabel.get(d)?.has(String(matchId)) ?? false)}
+                                                            showDailyHiddenFromMembersBadge={isStaffList && !!m.adminDailyEditableAnalysis}
                                                         />
                                                     </div>
                                                 );
