@@ -19,7 +19,7 @@ import { featuredSetForDayMatches } from "../../ultis/vvvipFeaturedMatches";
 import { useCanSeeVvvipFeaturedContent } from "../../hooks/useVvvipFeaturedMarkers";
 import API from "../../api/api";
 import { pastResultRowToMatch, type PastResultListRow } from "../../ultis/pastResultsToMatchList";
-import { annotateMatchesWithAdminDailyEditable } from "../../ultis/adminDailyEditableMatches";
+import { buildAdminDailyEditableIdSet } from "../../ultis/adminDailyEditableMatches";
 
 
 function MatchsPage() {
@@ -58,6 +58,11 @@ function MatchsPage() {
         if (!data || !Array.isArray(data)) {
             return [] as Match[];
         }
+        // Daily “two hidden” picks MUST be derived from the same pool members see (`data` only).
+        // Staff merge past fixtures into the list for display; including those in the hash would
+        // change which IDs are chosen and members would still see matches marked for admins.
+        const hiddenDailyIdSet = buildAdminDailyEditableIdSet(data as Match[]);
+
         let base = [...data] as Match[];
         const pastRows = pastTwoDaysPayload?.matches ?? [];
         if (isStaffList && pastRows.length > 0) {
@@ -73,12 +78,10 @@ function MatchsPage() {
         const withIa = base.map((m: Match) => {
             const id = m.id || (m as any).eventId;
             const ia = id && analysisMap?.[id] ? analysisMap[id] : m.ia;
-            return { ...m, ia };
+            const idStr = String(id || "");
+            const adminDailyEditableAnalysis = idStr ? hiddenDailyIdSet.has(idStr) : false;
+            return { ...m, ia, adminDailyEditableAnalysis };
         });
-        // Past fixtures merged above were never annotated on the server; re-run the same
-        // deterministic daily pair logic on the full list for staff workflows.
-        annotateMatchesWithAdminDailyEditable(withIa);
-        // Same two fixtures per HK day as adminDailyEditableAnalysis: hidden on this page for all members.
         if (!isStaffList) {
             return withIa.filter((m) => !m.adminDailyEditableAnalysis);
         }

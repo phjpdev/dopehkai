@@ -49,6 +49,7 @@ export function pickTwoDistinctSortedIds(sortedIds: string[], dayKey: string): s
     return a.localeCompare(b) < 0 ? [a, b] : [b, a];
 }
 
+/** Pass the same match pool for everyone (typically live API list) so list + detail flags stay aligned. */
 export function buildAdminDailyEditableIdSet(
     matches: Array<{ id?: string; eventId?: string; kickOff?: string }>
 ): Set<string> {
