@@ -1353,11 +1353,18 @@ class MatchController {
             }
             const matchRef = doc(db, Tables.matches, id);
             const snap = await getDoc(matchRef);
-            if (!snap.exists()) {
-                res.status(404).json({ error: "Match not found" });
-                return;
+            /** Detail GET can return analysis-only fixtures without a `matches` row; CREATE via merge on first admin save. */
+            let existing: Match;
+            if (snap.exists()) {
+                existing = snap.data() as Match;
+            } else {
+                const seeded = await MatchController.tryBuildMatchFromAnalysisDoc(id);
+                if (!seeded) {
+                    res.status(404).json({ error: "Match not found" });
+                    return;
+                }
+                existing = seeded;
             }
-            const existing = snap.data() as Match;
 
             const body = req.body && typeof req.body === "object" ? req.body : {};
             const pickIn = typeof body.pickDisplay === "object" && body.pickDisplay ? body.pickDisplay : {};
@@ -1437,7 +1444,13 @@ class MatchController {
                 }
             }
 
-            await setDoc(matchRef, { adminAnalysisEdits: next }, { merge: true });
+            await setDoc(
+                matchRef,
+                snap.exists()
+                    ? { adminAnalysisEdits: next }
+                    : { ...existing, adminAnalysisEdits: next },
+                { merge: true },
+            );
             await cacheDel(CacheKeys.matchDetail(id));
             await cacheDel(CacheKeys.matchesList(false));
             await cacheDel(CacheKeys.matchesList(true));
