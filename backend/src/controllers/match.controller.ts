@@ -1731,11 +1731,11 @@ class MatchController {
             }
 
             if (homeWinRate == null || awayWinRate == null) {
-                return {
-                    ok: false as const,
-                    reason: "no_predictions" as const,
-                    message: "No ML predictions, HKJC 1X2 implied %, stored IA win rates, or last-games stats for this match.",
-                };
+                console.warn(
+                    `[ensureGeminiAnalysisForMatch] No win-rate source for ${matchId}; defaulting to 50/50.`,
+                );
+                homeWinRate = 50;
+                awayWinRate = 50;
             }
 
             if (!matchData.predictions) {

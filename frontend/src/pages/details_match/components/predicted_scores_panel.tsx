@@ -19,15 +19,24 @@ function resolvedPairs(probability: Probability): { row1: { home: number; away: 
     const a1 = clamp(d?.row1Away);
     const h2 = clamp(d?.row2Home);
     const a2 = clamp(d?.row2Away);
-    return alignPredictedPairsWithHad(
-        {
-            row1:
-                h1 !== undefined && a1 !== undefined ? { home: h1, away: a1 } : base.row1,
-            row2:
-                h2 !== undefined && a2 !== undefined ? { home: h2, away: a2 } : base.row2,
-        },
-        probability
-    );
+
+    const row1Override = h1 !== undefined && a1 !== undefined;
+    const row2Override = h2 !== undefined && a2 !== undefined;
+
+    const pairs = {
+        row1: row1Override ? { home: h1, away: a1 } : base.row1,
+        row2: row2Override ? { home: h2, away: a2 } : base.row2,
+    };
+
+    if (row1Override && row2Override) {
+        return pairs;
+    }
+
+    const aligned = alignPredictedPairsWithHad(pairs, probability);
+    return {
+        row1: row1Override ? pairs.row1 : aligned.row1,
+        row2: row2Override ? pairs.row2 : aligned.row2,
+    };
 }
 
 /**
